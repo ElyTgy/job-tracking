@@ -215,7 +215,81 @@ def fetch_html(feed_url: str):
     return out
 
 
+def fetch_jibe(feed_url: str):
+    """Jibe/iCIMS career sites (e.g. https://careers.amd.com/api/jobs?page=1).
+    Paginated JSON: {"jobs": [{"data": {...}}], "totalCount": N}."""
+    base = feed_url.split("?")[0]
+    out, page = [], 1
+    while True:
+        data = _get_json(f"{base}?page={page}")
+        batch = data.get("jobs", [])
+        for wrap in batch:
+            j = wrap.get("data", wrap)
+            loc = (j.get("city") or "")
+            if j.get("country"):
+                loc = ", ".join(filter(None, [loc, j.get("country")]))
+            out.append(
+                {
+                    "posting_key": str(j.get("req_id") or j.get("slug") or j.get("apply_url")),
+                    "title": j.get("title", ""),
+                    "url": j.get("apply_url") or j.get("canonical_url"),
+                    "location": loc,
+                    "department": j.get("category", [None])[0]
+                    if isinstance(j.get("category"), list)
+                    else j.get("category"),
+                    "posted_date": (j.get("posted_date") or "")[:10],
+                }
+            )
+        if len(out) >= data.get("totalCount", 0) or not batch:
+            return out
+        page += 1
+
+
+def fetch_gem(feed_url: str):
+    """Gem job boards (e.g. https://api.gem.com/job_board/v0/{slug}/job_posts/).
+    Bare JSON array with title/absolute_url."""
+    data = _get_json(feed_url)
+    return [
+        {
+            "posting_key": str(j.get("id") or j.get("absolute_url")),
+            "title": j.get("title", ""),
+            "url": j.get("absolute_url"),
+            "location": (j.get("location") or {}).get("name")
+            if isinstance(j.get("location"), dict)
+            else j.get("location"),
+            "department": "",
+            "posted_date": "",
+        }
+        for j in data
+    ]
+
+
+def fetch_kula(feed_url: str):
+    """Kula ATS via the company site's own JSON proxy
+    (e.g. https://www.precisionneuro.io/api/job-listings)."""
+    data = _get_json(feed_url)
+    jobs = data if isinstance(data, list) else data.get("jobs") or data.get("data") or []
+    out = []
+    for j in jobs:
+        out.append(
+            {
+                "posting_key": str(j.get("id") or j.get("slug") or j.get("url") or j.get("title")),
+                "title": j.get("title") or j.get("name", ""),
+                "url": j.get("url") or j.get("absolute_url") or j.get("hostedUrl"),
+                "location": j.get("location") if isinstance(j.get("location"), str)
+                else (j.get("location") or {}).get("name"),
+                "department": j.get("department") if isinstance(j.get("department"), str)
+                else (j.get("department") or {}).get("name"),
+                "posted_date": "",
+            }
+        )
+    return out
+
+
 FETCHERS = {
+    "jibe": fetch_jibe,
+    "gem": fetch_gem,
+    "kula": fetch_kula,
     "greenhouse": fetch_greenhouse,
     "lever": fetch_lever,
     "ashby": fetch_ashby,
