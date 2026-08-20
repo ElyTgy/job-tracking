@@ -17,6 +17,26 @@ internship_markers:
   - university program
   - campus hire
 
+# Postings whose TITLE matches any of these are dropped entirely (never stored).
+# Use for degree requirements you can't apply to.
+title_exclusions:
+  phrase:
+    - phd
+    - ph.d
+    - doctoral
+    - postdoc
+    - post-doc
+    - m.s.
+    - msc
+    - m.sc
+    - meng
+    - m.eng
+    - master's
+    - masters
+    - mba
+  word:
+    - ms
+
 # Tag = relevant when any of these hit title or department.
 relevant:
   phrase:
@@ -25,7 +45,6 @@ relevant:
     - artificial intelligence
     - genai
     - gen ai
-    - llm
     - nlp
     - computer vision
     - data science
@@ -81,6 +100,8 @@ relevant:
     - soc
     - chip
     - chips
+    - llm
+    - llms
 
 # Tag = excluded-interest (still collected + shown, just de-prioritized).
 # Only applies if no `relevant` keyword also hit — relevant wins ties, so

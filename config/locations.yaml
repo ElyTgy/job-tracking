@@ -1,0 +1,50 @@
+# Location preference — postings are ALWAYS collected; ones whose location
+# matches nothing here are hidden behind the board's "Anywhere" toggle and
+# left out of email digests (shown only as a "+N elsewhere" count).
+#
+# Matching is case-insensitive substring against the posting's location field.
+# A posting with several locations passes if ANY of them matches.
+# Postings with no location listed always pass (unknown != excluded).
+allowed:
+  # US: Boston / California / New York only
+  - boston
+  - massachusetts
+  - ", ma"
+  - california
+  - ", ca,"
+  - san francisco
+  - bay area
+  - los angeles
+  - san diego
+  - san jose
+  - mountain view
+  - palo alto
+  - menlo park
+  - sunnyvale
+  - santa clara
+  - berkeley
+  - alameda
+  - el segundo
+  - long beach
+  - irvine
+  - new york
+  - ", ny"
+  - nyc
+  - brooklyn
+  - manhattan
+  # remote is always an option
+  - remote
+  # Canada (home turf)
+  - canada
+  - vancouver
+  - toronto
+  - montreal
+  - montréal
+  - waterloo
+  - ottawa
+  - burnaby
+  - markham
+  - ", bc"
+  - ", on,"
+  - ontario
+  - british columbia

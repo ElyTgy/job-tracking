@@ -36,15 +36,20 @@ def load_env():
 
 
 def new_postings(conn):
-    return conn.execute(
+    """New postings in preferred locations only; elsewhere-count reported separately."""
+    rows = conn.execute(
         """SELECT p.*, c.name AS company FROM postings p
            JOIN companies c ON c.id=p.company_id
-           WHERE p.is_new=1 AND p.closed=0
+           WHERE p.is_new=1 AND p.closed=0 AND p.loc_ok=1
            ORDER BY p.tag='relevant' DESC, c.name COLLATE NOCASE, p.title"""
     ).fetchall()
+    elsewhere = conn.execute(
+        "SELECT COUNT(*) FROM postings WHERE is_new=1 AND closed=0 AND loc_ok=0"
+    ).fetchone()[0]
+    return rows, elsewhere
 
 
-def build_html(rows) -> str:
+def build_html(rows, elsewhere: int = 0) -> str:
     sections: dict[str, list] = {}
     for r in rows:
         sections.setdefault(r["tag"], []).append(r)
@@ -68,6 +73,12 @@ def build_html(rows) -> str:
                 f"<br><span style='color:#666'>{r['company']}{loc}</span></li>"
             )
         parts.append("</ul>")
+    if elsewhere:
+        parts.append(
+            f"<p style='color:#999'>+{elsewhere} new posting"
+            f"{'s' if elsewhere != 1 else ''} outside your preferred locations "
+            "(visible on the board under Location: Anywhere).</p>"
+        )
     parts.append("</div>")
     return "".join(parts)
 
@@ -103,15 +114,15 @@ def macos_notify(count: int):
 def main():
     load_env()
     conn = db.connect()
-    rows = new_postings(conn)
+    rows, elsewhere = new_postings(conn)
     if not rows:
-        print("No new postings; nothing to send.")
+        print(f"No new postings in preferred locations ({elsewhere} elsewhere); nothing to send.")
         return 0
     relevant = sum(1 for r in rows if r["tag"] == "relevant")
     subject = f"[Internships] {len(rows)} new posting{'s' if len(rows) != 1 else ''}"
     if relevant:
         subject += f" ({relevant} relevant)"
-    if send_email(subject, build_html(rows)):
+    if send_email(subject, build_html(rows, elsewhere)):
         print(f"Emailed digest of {len(rows)} postings to {TO_ADDRESS}.")
     else:
         macos_notify(len(rows))

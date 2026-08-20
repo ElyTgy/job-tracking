@@ -5,11 +5,35 @@ from pathlib import Path
 import yaml
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "keywords.yaml"
+LOCATIONS_PATH = Path(__file__).resolve().parent.parent / "config" / "locations.yaml"
 
 
 def load_config() -> dict:
     with open(CONFIG_PATH) as f:
-        return yaml.safe_load(f)
+        cfg = yaml.safe_load(f)
+    if LOCATIONS_PATH.exists():
+        with open(LOCATIONS_PATH) as f:
+            cfg["locations"] = yaml.safe_load(f) or {}
+    else:
+        cfg["locations"] = {}
+    return cfg
+
+
+def is_degree_excluded(title: str, cfg: dict) -> bool:
+    """True when the title demands a degree the user can't apply with (PhD/MS/...)."""
+    exc = cfg.get("title_exclusions") or {}
+    text = title.lower()
+    return bool(_phrase_hits(text, exc.get("phrase")) or _word_hits(text, exc.get("word")))
+
+
+def location_ok(location: str, cfg: dict) -> bool:
+    """True when any of the posting's locations matches the allowed list.
+    Unknown/empty locations pass — unknown is not the same as excluded."""
+    allowed = (cfg.get("locations") or {}).get("allowed") or []
+    if not location or not allowed:
+        return True
+    text = location.lower()
+    return any(a.lower() in text for a in allowed)
 
 
 def _phrase_hits(text: str, phrases: list[str]) -> list[str]:

@@ -75,6 +75,13 @@
                border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px;
                cursor: pointer; font: inherit; }
   .unverified { color: #eab308; font-size: 11px; }
+  .expander { display: flex; gap: 8px; align-items: center; padding: 8px 16px;
+              background: var(--panel2); }
+  .mute-btn { font-size: 10.5px; color: var(--muted); border: 1px solid var(--border);
+              border-radius: 8px; padding: 0 6px; cursor: pointer; opacity: .6; }
+  .mute-btn:hover { opacity: 1; color: var(--exc); border-color: var(--exc); }
+  .farloc { font-size: 10.5px; color: #eab308; border: 1px solid #eab308;
+            border-radius: 8px; padding: 0 5px; }
 </style>
 </head>
 <body>
@@ -102,7 +109,12 @@
       <option>rejected</option><option>offer</option>
     </select>
     <select id="p-company"><option value="">All companies</option></select>
+    <div class="seg" id="p-locseg">
+      <button data-loc="pref" class="active">Preferred locations</button>
+      <button data-loc="all">Anywhere</button>
+    </div>
     <label style="color:var(--muted)"><input type="checkbox" id="p-closed"> show closed</label>
+    <span id="p-muted" class="chip" style="display:none;cursor:pointer"></span>
   </div>
   <main id="p-list"></main>
 </div>
@@ -142,14 +154,34 @@ $("#tab-companies").onclick = () => showTab("companies");
 
 // ---- postings ----
 let pTag = "relevant";
+let pLoc = "pref";
+const COLLAPSE_AT = 5, COLLAPSE_SHOW = 3;
+const expanded = new Set();
+const MUTED = new Set(JSON.parse(localStorage.getItem("mutedCompanies") || "[]"));
+
 $("#p-tagseg").addEventListener("click", (e) => {
   if (!e.target.dataset.tag) return;
   pTag = e.target.dataset.tag;
   [...$("#p-tagseg").children].forEach((b) => b.classList.toggle("active", b === e.target));
   renderPostings();
 });
+$("#p-locseg").addEventListener("click", (e) => {
+  if (!e.target.dataset.loc) return;
+  pLoc = e.target.dataset.loc;
+  [...$("#p-locseg").children].forEach((b) => b.classList.toggle("active", b === e.target));
+  renderPostings();
+});
 ["p-search", "p-status", "p-company", "p-closed"].forEach((id) =>
   $("#" + id).addEventListener("input", renderPostings));
+
+function saveMuted() {
+  localStorage.setItem("mutedCompanies", JSON.stringify([...MUTED]));
+  renderPostings();
+}
+function muteCompany(name) { MUTED.add(name); saveMuted(); }
+function unmuteAll() { MUTED.clear(); saveMuted(); }
+
+function expandCompany(name) { expanded.add(name); renderPostings(); }
 
 function renderPostings() {
   const q = $("#p-search").value.toLowerCase();
@@ -159,13 +191,50 @@ function renderPostings() {
   const rows = POSTINGS.filter((p) => {
     if (!showClosed && p.closed) return false;
     if (pTag !== "all" && p.tag !== pTag) return false;
+    if (pLoc === "pref" && !p.loc_ok) return false;
+    if (MUTED.has(p.company)) return false;
     if (st && p.user_status !== st) return false;
     if (comp && String(p.company_id) !== comp) return false;
     if (q && !(p.title + " " + p.company + " " + (p.location || "")).toLowerCase().includes(q)) return false;
     return true;
   });
-  $("#p-list").innerHTML = rows.length ? rows.map(postingRow).join("") :
-    "<p class='empty'>No postings match. The scraper may not have run yet — try <code>make check</code>.</p>";
+
+  // collapse companies that flood the feed (unless searching/filtering to one company)
+  const counts = {};
+  rows.forEach((p) => { counts[p.company] = (counts[p.company] || 0) + 1; });
+  const collapse = !q && !comp;
+  const shown = {}, expanderDone = {};
+  const html = [];
+  for (const p of rows) {
+    shown[p.company] = (shown[p.company] || 0) + 1;
+    const flooding = collapse && counts[p.company] > COLLAPSE_AT && !expanded.has(p.company);
+    if (flooding && shown[p.company] > COLLAPSE_SHOW) {
+      if (!expanderDone[p.company]) {
+        expanderDone[p.company] = true;
+        html.push(`<div class="row expander">
+          <span class="count">+${counts[p.company] - COLLAPSE_SHOW} more from ${esc(p.company)}</span>
+          <a href="javascript:void 0" onclick="expandCompany(${esc(JSON.stringify(p.company))})">show all</a>
+          &nbsp;·&nbsp;
+          <a href="javascript:void 0" onclick="muteCompany(${esc(JSON.stringify(p.company))})">mute company</a>
+        </div>`);
+      }
+      continue;
+    }
+    html.push(postingRow(p));
+  }
+
+  const mutedChip = $("#p-muted");
+  if (MUTED.size) {
+    mutedChip.style.display = "";
+    mutedChip.textContent = `muted: ${[...MUTED].join(", ")} ✕`;
+    mutedChip.onclick = unmuteAll;
+    mutedChip.title = "click to unmute all";
+  } else {
+    mutedChip.style.display = "none";
+  }
+
+  $("#p-list").innerHTML = html.length ? html.join("") :
+    "<p class='empty'>No postings match — try the Anywhere location toggle, the All tag, or unmuting companies.</p>";
 }
 
 function postingRow(p) {
@@ -184,7 +253,9 @@ function postingRow(p) {
     </div>
     <div class="sub">
       <span class="company-link" onclick="gotoCompany(${p.company_id})">${esc(p.company)}</span>
-      ${p.location ? `<span>${esc(p.location)}</span>` : ""}
+      <span class="mute-btn" title="hide this company from the feed"
+            onclick="muteCompany(${esc(JSON.stringify(p.company))})">mute</span>
+      ${p.location ? `<span>${esc(p.location)}${p.loc_ok ? "" : " <span class='farloc'>far</span>"}</span>` : ""}
       ${p.department ? `<span>${esc(p.department)}</span>` : ""}
       <span>first seen ${esc((p.first_seen || "").slice(0, 10))}</span>
     </div>

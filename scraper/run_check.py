@@ -33,7 +33,12 @@ def recently_ran(conn, hours: float = 40.0) -> bool:
 def check_company(conn, company, cfg, run_started: str) -> dict:
     fetcher = adapters.FETCHERS[company["ats_type"]]
     postings = fetcher(company["feed_url"] or company["careers_url"])
-    internships = [p for p in postings if classify.is_internship(p["title"], cfg)]
+    internships = [
+        p
+        for p in postings
+        if classify.is_internship(p["title"], cfg)
+        and not classify.is_degree_excluded(p["title"], cfg)
+    ]
 
     new_count = 0
     seen_keys = set()
@@ -42,20 +47,21 @@ def check_company(conn, company, cfg, run_started: str) -> dict:
             continue
         seen_keys.add(p["posting_key"])
         tag, hits = classify.tag_posting(p["title"], p["department"], cfg)
+        loc_ok = 1 if classify.location_ok(p["location"], cfg) else 0
         existing = conn.execute(
             "SELECT id FROM postings WHERE company_id=? AND posting_key=?",
             (company["id"], p["posting_key"]),
         ).fetchone()
         if existing:
             conn.execute(
-                "UPDATE postings SET last_seen=?, closed=0, tag=?, tag_hits=? WHERE id=?",
-                (run_started, tag, hits, existing["id"]),
+                "UPDATE postings SET last_seen=?, closed=0, tag=?, tag_hits=?, loc_ok=? WHERE id=?",
+                (run_started, tag, hits, loc_ok, existing["id"]),
             )
         else:
             conn.execute(
                 """INSERT INTO postings (company_id, posting_key, title, url, location,
-                   department, posted_date, tag, tag_hits, first_seen, last_seen, is_new)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,1)""",
+                   department, posted_date, tag, tag_hits, loc_ok, first_seen, last_seen, is_new)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)""",
                 (
                     company["id"],
                     p["posting_key"],
@@ -66,6 +72,7 @@ def check_company(conn, company, cfg, run_started: str) -> dict:
                     p["posted_date"],
                     tag,
                     hits,
+                    loc_ok,
                     run_started,
                     run_started,
                 ),

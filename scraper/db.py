@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS postings (
     posted_date TEXT,
     tag TEXT NOT NULL DEFAULT 'other',   -- relevant | excluded-interest | other
     tag_hits TEXT,              -- which keywords matched, for display chips
+    loc_ok INTEGER DEFAULT 1,   -- location matches config/locations.yaml
     first_seen TEXT NOT NULL,
     last_seen TEXT NOT NULL,
     is_new INTEGER DEFAULT 1,   -- set on insert, cleared after the next run's digest
@@ -65,9 +66,20 @@ CREATE TABLE IF NOT EXISTS runs (
 """
 
 
+MIGRATIONS = [
+    # loc_ok: 1 when the posting's location matches config/locations.yaml
+    "ALTER TABLE postings ADD COLUMN loc_ok INTEGER DEFAULT 1",
+]
+
+
 def connect() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    for mig in MIGRATIONS:
+        try:
+            conn.execute(mig)
+        except sqlite3.OperationalError:
+            pass  # column already exists
     return conn
