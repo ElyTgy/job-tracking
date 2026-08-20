@@ -64,8 +64,6 @@ relevant:
     - perception
     - power electronics
     - pcb
-    - soc
-    - chip
     - compiler
     - infrastructure
     - platform
@@ -80,6 +78,9 @@ relevant:
     - rf
     - qa
     - swqa
+    - soc
+    - chip
+    - chips
 
 # Tag = excluded-interest (still collected + shown, just de-prioritized).
 # Only applies if no `relevant` keyword also hit — relevant wins ties, so

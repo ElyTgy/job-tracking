@@ -286,7 +286,33 @@ def fetch_kula(feed_url: str):
     return out
 
 
+def fetch_amazonjobs(feed_url: str):
+    """amazon.jobs JSON search API, e.g.
+    https://www.amazon.jobs/en/search.json?base_query=intern&result_limit=100&offset=0
+    Top-level {"hits": N, "jobs": [{...}]} — pre-filtered server-side by base_query."""
+    base = feed_url.split("&offset=")[0]
+    out, offset = [], 0
+    while True:
+        data = _get_json(f"{base}&offset={offset}")
+        batch = data.get("jobs", [])
+        for j in batch:
+            out.append(
+                {
+                    "posting_key": str(j.get("id_icims") or j.get("id") or j.get("job_path")),
+                    "title": j.get("title", ""),
+                    "url": "https://www.amazon.jobs" + j.get("job_path", ""),
+                    "location": j.get("normalized_location") or j.get("location"),
+                    "department": j.get("job_category"),
+                    "posted_date": (j.get("posted_date") or "")[:10],
+                }
+            )
+        offset += len(batch)
+        if offset >= data.get("hits", 0) or not batch:
+            return out
+
+
 FETCHERS = {
+    "amazonjobs": fetch_amazonjobs,
     "jibe": fetch_jibe,
     "gem": fetch_gem,
     "kula": fetch_kula,

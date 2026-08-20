@@ -31,7 +31,13 @@ def normalize(name: str) -> str:
 
 
 def parse_csv(path: Path) -> tuple[list[dict], str]:
-    source = "linkedin" if "follow" in path.name.lower() else "notion"
+    lname = path.name.lower()
+    if "follow" in lname:
+        source = "linkedin"
+    elif "twitter" in lname or "x_" in lname:
+        source = "twitter"
+    else:
+        source = "notion"
     out = []
     with open(path, newline="", encoding="utf-8-sig") as f:
         # LinkedIn exports sometimes prefix note lines before the header
