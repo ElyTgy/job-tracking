@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Internship Tracker</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e2230; --border: #2a2f3d;
+    --text: #e6e9f0; --muted: #8b93a7; --accent: #6ea8fe; --new: #34d399;
+    --rel: #6ea8fe; --exc: #f87171; --oth: #8b93a7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 18px 24px 0; }
+  h1 { font-size: 20px; margin: 0; }
+  #runinfo { color: var(--muted); font-size: 12px; }
+  nav { display: flex; gap: 4px; padding: 12px 24px 0; border-bottom: 1px solid var(--border); }
+  nav button { background: none; border: none; color: var(--muted); font: inherit;
+               padding: 8px 14px; cursor: pointer; border-bottom: 2px solid transparent; }
+  nav button.active { color: var(--text); border-bottom-color: var(--accent); }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; padding: 14px 24px; align-items: center; }
+  input[type=search], select {
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 10px; font: inherit; }
+  input[type=search] { min-width: 220px; }
+  .seg { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg button { background: var(--panel); border: none; color: var(--muted);
+                padding: 6px 12px; cursor: pointer; font: inherit; }
+  .seg button.active { background: var(--accent); color: #0b1020; }
+  main { padding: 0 24px 60px; }
+  .row { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+         padding: 12px 16px; margin-bottom: 8px; }
+  .row:hover { border-color: #3a4155; }
+  .toprow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .title { font-weight: 600; color: var(--text); text-decoration: none; }
+  .title:hover { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 12.5px; margin-top: 4px;
+         display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
+  .badge.new { background: var(--new); color: #062b1c; }
+  .badge.closed { background: #3a2020; color: var(--exc); }
+  .chip { font-size: 11px; padding: 2px 7px; border-radius: 10px;
+          border: 1px solid var(--border); color: var(--muted); }
+  .chip.relevant { color: var(--rel); border-color: var(--rel); }
+  .chip.excluded-interest { color: var(--exc); border-color: var(--exc); }
+  .company-link { color: var(--muted); cursor: pointer; }
+  .company-link:hover { color: var(--accent); }
+  .status-sel { margin-left: auto; }
+  .comp-head { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+  .caret { color: var(--muted); width: 12px; display: inline-block;
+           transition: transform .12s; }
+  .open .caret { transform: rotate(90deg); }
+  .comp-name { font-weight: 600; flex: 0 0 auto; }
+  .count { color: var(--muted); }
+  .count.has { color: var(--new); font-weight: 600; }
+  .ats { font-size: 11px; color: var(--muted); border: 1px solid var(--border);
+         padding: 1px 7px; border-radius: 10px; }
+  .checked { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .checked.err { color: var(--exc); }
+  .comp-body { display: none; margin-top: 12px; border-top: 1px solid var(--border);
+               padding-top: 12px; }
+  .open .comp-body { display: block; }
+  .comp-body h4 { margin: 10px 0 6px; font-size: 12px; text-transform: uppercase;
+                  letter-spacing: .05em; color: var(--muted); }
+  .rec { display: flex; gap: 10px; align-items: center; padding: 4px 0; flex-wrap: wrap; }
+  .rec .email { font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--text); }
+  .copy { cursor: pointer; border: 1px solid var(--border); background: none;
+          color: var(--muted); border-radius: 4px; padding: 1px 6px; font-size: 11px; }
+  .copy:hover { color: var(--text); }
+  a { color: var(--accent); }
+  .empty { color: var(--muted); font-style: italic; }
+  .exportbtn { margin-left: auto; background: var(--panel2); color: var(--text);
+               border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px;
+               cursor: pointer; font: inherit; }
+  .unverified { color: #eab308; font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Internship Tracker</h1>
+  <span id="runinfo"></span>
+</header>
+<nav>
+  <button id="tab-postings" class="active">Postings</button>
+  <button id="tab-companies">Companies</button>
+</nav>
+
+<div id="view-postings">
+  <div class="controls">
+    <input type="search" id="p-search" placeholder="Search title, company, location…">
+    <div class="seg" id="p-tagseg">
+      <button data-tag="relevant" class="active">Relevant</button>
+      <button data-tag="all">All</button>
+      <button data-tag="other">Other</button>
+      <button data-tag="excluded-interest">Filtered</button>
+    </div>
+    <select id="p-status">
+      <option value="">Any status</option>
+      <option>not seen</option><option>seen</option><option>applied</option>
+      <option>rejected</option><option>offer</option>
+    </select>
+    <select id="p-company"><option value="">All companies</option></select>
+    <label style="color:var(--muted)"><input type="checkbox" id="p-closed"> show closed</label>
+  </div>
+  <main id="p-list"></main>
+</div>
+
+<div id="view-companies" style="display:none">
+  <div class="controls">
+    <input type="search" id="c-search" placeholder="Search companies…">
+    <div class="seg" id="c-filterseg">
+      <button data-f="all" class="active">All</button>
+      <button data-f="open">Has openings</button>
+      <button data-f="issues">Issues</button>
+    </div>
+    <select id="c-sort">
+      <option value="open">Sort: open internships</option>
+      <option value="name">Sort: name</option>
+    </select>
+    <button class="exportbtn" onclick="location.href='/api/recruiters.csv'">Export recruiters CSV</button>
+  </div>
+  <main id="c-list"></main>
+</div>
+
+<script>
+let POSTINGS = [], COMPANIES = [];
+const $ = (s) => document.querySelector(s);
+const esc = (s) => (s ?? "").toString().replace(/[&<>"]/g,
+  (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// ---- tabs ----
+function showTab(name) {
+  $("#view-postings").style.display = name === "postings" ? "" : "none";
+  $("#view-companies").style.display = name === "companies" ? "" : "none";
+  $("#tab-postings").classList.toggle("active", name === "postings");
+  $("#tab-companies").classList.toggle("active", name === "companies");
+}
+$("#tab-postings").onclick = () => showTab("postings");
+$("#tab-companies").onclick = () => showTab("companies");
+
+// ---- postings ----
+let pTag = "relevant";
+$("#p-tagseg").addEventListener("click", (e) => {
+  if (!e.target.dataset.tag) return;
+  pTag = e.target.dataset.tag;
+  [...$("#p-tagseg").children].forEach((b) => b.classList.toggle("active", b === e.target));
+  renderPostings();
+});
+["p-search", "p-status", "p-company", "p-closed"].forEach((id) =>
+  $("#" + id).addEventListener("input", renderPostings));
+
+function renderPostings() {
+  const q = $("#p-search").value.toLowerCase();
+  const st = $("#p-status").value;
+  const comp = $("#p-company").value;
+  const showClosed = $("#p-closed").checked;
+  const rows = POSTINGS.filter((p) => {
+    if (!showClosed && p.closed) return false;
+    if (pTag !== "all" && p.tag !== pTag) return false;
+    if (st && p.user_status !== st) return false;
+    if (comp && String(p.company_id) !== comp) return false;
+    if (q && !(p.title + " " + p.company + " " + (p.location || "")).toLowerCase().includes(q)) return false;
+    return true;
+  });
+  $("#p-list").innerHTML = rows.length ? rows.map(postingRow).join("") :
+    "<p class='empty'>No postings match. The scraper may not have run yet — try <code>make check</code>.</p>";
+}
+
+function postingRow(p) {
+  const chips = (p.tag_hits || "").split(",").filter(Boolean).slice(0, 4)
+    .map((h) => `<span class="chip ${esc(p.tag)}">${esc(h)}</span>`).join(" ");
+  return `<div class="row">
+    <div class="toprow">
+      ${p.is_new ? '<span class="badge new">NEW</span>' : ""}
+      ${p.closed ? '<span class="badge closed">closed</span>' : ""}
+      <a class="title" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>
+      ${chips}
+      <select class="status-sel" onchange="setStatus(${p.id}, this.value)">
+        ${["not seen","seen","applied","rejected","offer"].map(
+          (s) => `<option ${s === p.user_status ? "selected" : ""}>${s}</option>`).join("")}
+      </select>
+    </div>
+    <div class="sub">
+      <span class="company-link" onclick="gotoCompany(${p.company_id})">${esc(p.company)}</span>
+      ${p.location ? `<span>${esc(p.location)}</span>` : ""}
+      ${p.department ? `<span>${esc(p.department)}</span>` : ""}
+      <span>first seen ${esc((p.first_seen || "").slice(0, 10))}</span>
+    </div>
+  </div>`;
+}
+
+async function setStatus(id, status) {
+  await fetch(`/api/postings/${id}/status`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  const p = POSTINGS.find((x) => x.id === id);
+  if (p) p.user_status = status;
+}
+
+function gotoCompany(id) {
+  showTab("companies");
+  $("#c-search").value = "";
+  renderCompanies();
+  const el = document.getElementById("comp-" + id);
+  if (el) { el.classList.add("open"); el.scrollIntoView({ behavior: "smooth", block: "center" }); }
+}
+
+// ---- companies ----
+let cFilter = "all";
+$("#c-filterseg").addEventListener("click", (e) => {
+  if (!e.target.dataset.f) return;
+  cFilter = e.target.dataset.f;
+  [...$("#c-filterseg").children].forEach((b) => b.classList.toggle("active", b === e.target));
+  renderCompanies();
+});
+["c-search", "c-sort"].forEach((id) => $("#" + id).addEventListener("input", renderCompanies));
+
+function renderCompanies() {
+  const q = $("#c-search").value.toLowerCase();
+  let rows = COMPANIES.filter((c) => {
+    if (cFilter === "open" && !c.open_count) return false;
+    if (cFilter === "issues" &&
+        !(String(c.last_check_status || "").startsWith("error") ||
+          c.discovery_status !== "ok")) return false;
+    if (q && !c.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  rows = rows.sort((a, b) => $("#c-sort").value === "open"
+    ? b.open_count - a.open_count || a.name.localeCompare(b.name)
+    : a.name.localeCompare(b.name));
+  $("#c-list").innerHTML = rows.length ? rows.map(companyRow).join("") :
+    "<p class='empty'>No companies yet — run <code>make ingest</code> after dropping your exports into inputs/.</p>";
+}
+
+function companyRow(c) {
+  const err = String(c.last_check_status || "").startsWith("error");
+  const checked = c.last_checked
+    ? `checked ${esc(c.last_checked.slice(0, 10))}${err ? " ⚠︎ error" : ""}`
+    : (c.discovery_status === "ok" ? "not checked yet" : esc(c.discovery_status));
+  const recs = c.recruiters.length
+    ? c.recruiters.map((r) => `<div class="rec">
+        <span>${esc(r.name)}</span><span class="count">— ${esc(r.title || "")}</span>
+        ${r.email ? `<span class="email">${esc(r.email)}</span>
+          <button class="copy" onclick="navigator.clipboard.writeText('${esc(r.email)}');this.textContent='copied';setTimeout(()=>this.textContent='copy',900)">copy</button>` : ""}
+        ${r.email_status === "unverified" ? '<span class="unverified">unverified</span>' : ""}
+        ${r.linkedin_url ? `<a href="${esc(r.linkedin_url)}" target="_blank" rel="noopener">LinkedIn</a>` : ""}
+      </div>`).join("")
+    : "<p class='empty'>No recruiter contacts yet.</p>";
+  const posts = POSTINGS.filter((p) => p.company_id === c.id && !p.closed);
+  const postList = posts.length
+    ? posts.map((p) => `<div class="rec">${p.is_new ? '<span class="badge new">NEW</span>' : ""}
+        <a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>
+        ${p.location ? `<span class="count">${esc(p.location)}</span>` : ""}</div>`).join("")
+    : "<p class='empty'>No open internship postings.</p>";
+  return `<div class="row" id="comp-${c.id}">
+    <div class="comp-head" onclick="this.parentElement.classList.toggle('open')">
+      <span class="caret">▸</span>
+      <span class="comp-name">${esc(c.name)}</span>
+      ${c.ats_type ? `<span class="ats">${esc(c.ats_type)}</span>` : ""}
+      <span class="count ${posts.length ? "has" : ""}">${posts.length} open internship${posts.length === 1 ? "" : "s"}</span>
+      <span class="checked ${err ? "err" : ""}">${checked}</span>
+    </div>
+    <div class="comp-body">
+      ${c.careers_url ? `<a href="${esc(c.careers_url)}" target="_blank" rel="noopener">careers page ↗</a>` : ""}
+      <h4>Recruiters</h4>${recs}
+      <h4>Open internships</h4>${postList}
+    </div>
+  </div>`;
+}
+
+// ---- boot ----
+async function boot() {
+  const [p, c, run] = await Promise.all([
+    fetch("/api/postings").then((r) => r.json()),
+    fetch("/api/companies").then((r) => r.json()),
+    fetch("/api/runs/latest").then((r) => r.json()),
+  ]);
+  POSTINGS = p; COMPANIES = c;
+  $("#p-company").innerHTML = '<option value="">All companies</option>' +
+    c.filter((x) => x.open_count).map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join("");
+  if (run && run.started) {
+    $("#runinfo").textContent =
+      `last check ${run.started.slice(0, 10)} · ${run.companies_checked} companies · ` +
+      `${run.new_postings} new · ${run.companies_failed} failed`;
+  }
+  renderPostings();
+  renderCompanies();
+}
+boot();
+</script>
+</body>
+</html>

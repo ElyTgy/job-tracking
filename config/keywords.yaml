@@ -1,0 +1,95 @@
+# Edit freely — the scraper reloads this on every run.
+# All matching is case-insensitive. "phrase" entries match anywhere in the
+# title/department; entries under `word:` match on word boundaries only.
+
+# A posting counts as an internship if ANY of these hit the title.
+internship_markers:
+  - intern
+  - internship
+  - co-op
+  - coop
+  - working student
+  - student engineer
+  - summer 2026
+  - summer 2027
+  - fall 2026
+  - spring 2027
+  - university program
+  - campus hire
+
+# Tag = relevant when any of these hit title or department.
+relevant:
+  phrase:
+    - machine learning
+    - deep learning
+    - artificial intelligence
+    - genai
+    - gen ai
+    - llm
+    - nlp
+    - computer vision
+    - data science
+    - data engineer
+    - software
+    - swe
+    - full stack
+    - fullstack
+    - backend
+    - frontend
+    - front end
+    - back end
+    - electrical
+    - electronics
+    - electronic
+    - hardware
+    - asic
+    - fpga
+    - firmware
+    - embedded
+    - test engineer
+    - test intern
+    - test development
+    - quality assurance
+    - validation
+    - verification
+    - gpu
+    - cuda
+    - silicon
+    - semiconductor
+    - signal
+    - rf engineer
+    - controls
+    - robotics
+    - autonomy
+    - perception
+    - power electronics
+    - pcb
+    - soc
+    - chip
+    - compiler
+    - infrastructure
+    - platform
+    - devops
+    - security
+  word:
+    - ml
+    - ai
+    - ee
+    - hw
+    - sw
+    - rf
+    - qa
+    - swqa
+
+# Tag = excluded-interest (still collected + shown, just de-prioritized).
+# Only applies if no `relevant` keyword also hit — relevant wins ties, so
+# "Electro-Mechanical Test Intern" stays relevant.
+excluded:
+  phrase:
+    - materials engineer
+    - materials science
+    - mechanical engineer
+    - mechanical design
+  word:
+    - materials
+    - mechanical

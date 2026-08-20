@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.yeganeh.internship-check</string>
+  <!-- Fires daily at 10:00; run_check's 40h guard turns that into every other
+       day and makes missed days (Mac asleep) catch up on the next fire. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>10</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+  <key>WorkingDirectory</key>
+  <string>/Users/yeganeh/Documents/job-tracking</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>.venv/bin/python -m scraper.run_check &amp;&amp; .venv/bin/python -m scraper.notify</string>
+  </array>
+  <key>StandardOutPath</key>
+  <string>/Users/yeganeh/Documents/job-tracking/logs/check.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/yeganeh/Documents/job-tracking/logs/check.err.log</string>
+</dict>
+</plist>
