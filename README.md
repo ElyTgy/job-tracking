@@ -54,3 +54,23 @@ Without it, you get a macOS notification instead of email.
 - `config/keywords.yaml` — internship markers + relevant/excluded keywords (edit freely)
 - `data/tracker.db` — SQLite source of truth
 - `inputs/` — your raw exports (gitignored)
+
+## Hosted board (open it from any device)
+
+The scraper keeps running on the laptop (launchd), but the database lives in
+[Turso](https://turso.tech) (hosted SQLite) and the board is served by Vercel, so the
+same data — including seen/applied statuses — is available everywhere.
+
+One-time setup:
+
+1. **Turso** — sign up (GitHub login), then in the dashboard create a database and an
+   auth token. You'll get `libsql://<name>-<org>.turso.io` and a token.
+2. **Local `.env`** — add `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `BOARD_PASSWORD`
+   (see `.env.example`). From now on the scraper writes to Turso.
+3. **Copy the existing data up:** `.venv/bin/python -m scraper.migrate_to_turso`
+4. **Vercel** — import the GitHub repo; in *Settings → Environment Variables* add the
+   same three variables; redeploy. The entrypoint is declared in `pyproject.toml`.
+
+The board asks for a password (any username) whenever `BOARD_PASSWORD` is set.
+`/api/health` reports which backend is in use. Without the Turso variables everything
+falls back to the local `data/tracker.db` exactly as before.

@@ -3,3 +3,4 @@ pyyaml
 fastapi
 uvicorn
 playwright>=1.40
+libsql

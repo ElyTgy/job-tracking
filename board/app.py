@@ -1,11 +1,18 @@
-"""Local job board API. Run with:  make serve  (uvicorn board.app:app --port 8787)"""
+"""Job board API.
+
+Local:   make serve  (uvicorn board.app:app --port 8787)
+Hosted:  Vercel (entrypoint in pyproject.toml) with TURSO_DATABASE_URL, TURSO_AUTH_TOKEN
+         and BOARD_PASSWORD set as environment variables.
+"""
 import csv
 import io
+import os
+import secrets
 import sys
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -13,6 +20,34 @@ from scraper import db  # noqa: E402
 
 app = FastAPI(title="Internship Tracker")
 STATIC = Path(__file__).resolve().parent / "static"
+db.load_env()
+
+
+@app.middleware("http")
+async def basic_auth(request: Request, call_next):
+    """HTTP Basic auth when BOARD_PASSWORD is set (i.e. when deployed publicly)."""
+    password = os.environ.get("BOARD_PASSWORD")
+    if password and request.url.path != "/api/health":
+        ok = False
+        auth = request.headers.get("authorization", "")
+        if auth.startswith("Basic "):
+            import base64
+            try:
+                _, _, given = base64.b64decode(auth[6:]).decode().partition(":")
+                ok = secrets.compare_digest(given, password)
+            except Exception:
+                ok = False
+        if not ok:
+            return Response(
+                "Unauthorized", status_code=401,
+                headers={"WWW-Authenticate": 'Basic realm="Internship Tracker"'},
+            )
+    return await call_next(request)
+
+
+@app.get("/api/health")
+def health():
+    return {"ok": True, "backend": "turso" if os.environ.get("TURSO_DATABASE_URL") else "sqlite"}
 
 VALID_STATUSES = {"not seen", "seen", "applied", "rejected", "offer"}
 

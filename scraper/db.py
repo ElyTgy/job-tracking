@@ -1,8 +1,21 @@
-"""SQLite layer: schema + small helpers. Single source of truth in data/tracker.db."""
+"""DB layer: schema + small helpers.
+
+Two backends, chosen at connect() time:
+  * Turso/libSQL (hosted SQLite) when TURSO_DATABASE_URL + TURSO_AUTH_TOKEN are set
+    (read from the environment or the repo's .env). This is what lets the board on
+    Vercel and the scraper on the laptop share one database.
+  * Plain local sqlite3 at data/tracker.db otherwise.
+
+Both expose the same sqlite3-style API the rest of the code uses: conn.execute(...)
+returning a cursor with fetchone/fetchall/rowcount/lastrowid, rows that support
+r["col"], r[0], dict(r) and tuple(r).
+"""
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "tracker.db"
+ROOT = Path(__file__).resolve().parent.parent
+DB_PATH = ROOT / "data" / "tracker.db"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS companies (
@@ -91,14 +104,106 @@ MIGRATIONS = [
 ]
 
 
-def connect() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.executescript(SCHEMA)
+def load_env() -> None:
+    """Populate os.environ from the repo's .env (never overriding real env vars)."""
+    env = ROOT / ".env"
+    if not env.exists():
+        return
+    for line in env.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+# --------------------------------------------------------------------------- rows
+
+class Row(tuple):
+    """Tuple that also answers to column names, like sqlite3.Row."""
+    __slots__ = ()
+    _cols: tuple = ()
+
+    def keys(self):
+        return list(self._cols)
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            try:
+                return tuple.__getitem__(self, self._cols.index(key))
+            except ValueError:
+                raise KeyError(key) from None
+        return tuple.__getitem__(self, key)
+
+
+def _row_class(cols):
+    return type("Row", (Row,), {"__slots__": (), "_cols": tuple(cols)})
+
+
+class _Cursor:
+    """Wraps a libsql cursor so rows come back as Row objects."""
+
+    def __init__(self, cur):
+        self._cur = cur
+        self._rowcls = _row_class([d[0] for d in (cur.description or ())])
+
+    def __getattr__(self, name):  # rowcount, lastrowid, description, ...
+        return getattr(self._cur, name)
+
+    def _wrap(self, r):
+        return None if r is None else self._rowcls(r)
+
+    def fetchone(self):
+        return self._wrap(self._cur.fetchone())
+
+    def fetchall(self):
+        return [self._wrap(r) for r in self._cur.fetchall()]
+
+    def __iter__(self):
+        return iter(self.fetchall())
+
+
+class _Conn:
+    """Wraps a libsql connection to return wrapped cursors."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def execute(self, sql, params=()):
+        return _Cursor(self._conn.execute(sql, tuple(params)))
+
+    def executemany(self, sql, seq):
+        return _Cursor(self._conn.executemany(sql, [tuple(p) for p in seq]))
+
+
+# ------------------------------------------------------------------------ connect
+
+def _apply_schema(conn) -> None:
+    bare = "\n".join(line.split("--", 1)[0] for line in SCHEMA.splitlines())
+    for stmt in bare.split(";"):
+        if stmt.strip():
+            conn.execute(stmt)
     for mig in MIGRATIONS:
         try:
             conn.execute(mig)
-        except sqlite3.OperationalError:
+        except Exception:  # sqlite3.OperationalError locally, ValueError from libsql
             pass  # column already exists
+    conn.commit()
+
+
+def connect():
+    load_env()
+    url = os.environ.get("TURSO_DATABASE_URL")
+    token = os.environ.get("TURSO_AUTH_TOKEN")
+    if url and token:
+        import libsql  # hosted backend; only needed when configured
+        conn = _Conn(libsql.connect(url, auth_token=token))
+    else:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+    _apply_schema(conn)
     return conn
