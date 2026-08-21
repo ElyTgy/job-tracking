@@ -53,6 +53,19 @@ CREATE TABLE IF NOT EXISTS recruiters (
     UNIQUE(company_id, name)
 );
 
+CREATE TABLE IF NOT EXISTS people (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    linkedin_url TEXT UNIQUE,
+    title TEXT,
+    company TEXT,
+    email TEXT,
+    email_status TEXT,          -- verified | unverified | not_found
+    notes TEXT,
+    user_status TEXT DEFAULT 'to contact',  -- to contact | contacted | replied | meeting | closed
+    added TEXT
+);
+
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY,
     started TEXT NOT NULL,

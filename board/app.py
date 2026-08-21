@@ -74,6 +74,29 @@ def set_status(posting_id: int, body: StatusUpdate):
     return {"ok": True}
 
 
+@app.get("/api/people")
+def people():
+    conn = db.connect()
+    return [dict(r) for r in conn.execute(
+        "SELECT * FROM people ORDER BY added DESC, name COLLATE NOCASE")]
+
+
+class PersonUpdate(BaseModel):
+    status: str | None = None
+    notes: str | None = None
+
+
+@app.post("/api/people/{person_id}")
+def update_person(person_id: int, body: PersonUpdate):
+    conn = db.connect()
+    if body.status is not None:
+        conn.execute("UPDATE people SET user_status=? WHERE id=?", (body.status, person_id))
+    if body.notes is not None:
+        conn.execute("UPDATE people SET notes=? WHERE id=?", (body.notes, person_id))
+    conn.commit()
+    return {"ok": True}
+
+
 @app.get("/api/runs/latest")
 def latest_run():
     conn = db.connect()

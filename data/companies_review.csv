@@ -1,159 +1,166 @@
 name,website,sources,discovery_status
-1X,1x.tech,twitter,pending
-Aalo Atomics,aalo.com,twitter,pending
-Aethero,aethero.com,twitter,pending
-Aleph Neuro,,twitter,pending
-Alloy Robotics,,twitter,pending
-alphaXiv,alphaxiv.org,twitter,pending
-Amazon,amazon.jobs,twitter,pending
-Ambition Labs,,twitter,pending
+1X,1x.tech,twitter,ok
+Aalo Atomics,aalo.com,twitter,ok
+Aethero,aethero.com,twitter,needs_manual
+Aleph Neuro,,twitter,ok
+Alloy Robotics,,twitter,ok
+alphaXiv,alphaxiv.org,twitter,ok
+Amazon,amazon.jobs,twitter,ok
+Ambition Labs,ambition.inc,twitter,needs_manual
 AMD,amd.com,notion,ok
-AMI Labs,,twitter,pending
+AMI Labs,,twitter,ok
 Anduril,anduril.com,manual,ok
 Anthropic,anthropic.com,manual,ok
-Anvil Robotics,,twitter,pending
+Anvil Robotics,,twitter,ok
 Applied Brain Research,appliedbrainresearch.com,notion,ok
-Applied Electrodynamics,,twitter,pending
-Arc Institute,arcinstitute.org,twitter,pending
-Archer Aviation,archer.com,twitter,pending
-Arena Physica,,twitter,pending
-Asimov,asimov.com,twitter,pending
-Astro Mechanica,,twitter,pending
-Atomic Industries,atomic.industries,twitter,pending
+Applied Electrodynamics,ae-dyn.com,twitter,needs_manual
+Applied Intuition,appliedintuition.com,manual,ok
+Arc Institute,arcinstitute.org,twitter,ok
+Archer Aviation,archer.com,twitter,ok
+Arena Physica,,twitter,ok
+Asimov,asimov.com,twitter,ok
+Astro Mechanica,,twitter,ok
+Atomic Industries,atomic.industries,twitter,ok
 Atomic Semi,atomicsemi.com,notion,ok
 Attune Neurosciences,attuneneuro.com,notion,ok
 Axoft,axoft.us,notion,ok
-BitRobot,,twitter,pending
+BitRobot,bitrobot.ai,twitter,needs_manual
 Blumind,blumind.ai,notion,ok
-Boom Supersonic,boomsupersonic.com,twitter,pending
-Boston Dynamics,bostondynamics.com,twitter,pending
-Bracket Bot,bracket.bot,twitter,pending
-comma.ai,comma.ai,twitter,pending
-Commonwealth Fusion Systems,cfs.energy,twitter,pending
+Boom Supersonic,boomsupersonic.com,twitter,ok
+Boston Dynamics,bostondynamics.com,twitter,ok
+Bracket Bot,bracket.bot,twitter,ok
+comma.ai,comma.ai,twitter,ok
+Commonwealth Fusion Systems,cfs.energy,twitter,ok
 Cortical Labs,corticallabs.com,notion,ok
-CuspAI,cusp.ai,twitter,pending
+CuspAI,cusp.ai,twitter,ok
 Cyberworks Robotics,cyberworksrobotics.com,notion,needs_manual
 d-Matrix,d-matrix.ai,notion,ok
-D1 Humanoid,,twitter,pending
+D1 Humanoid,omakaserobotics.ai,twitter,ok
 Databricks,databricks.com,manual,ok
-Diode Computers,,twitter,pending
-Dominion Dynamics,,twitter,pending
-Dyna Robotics,,twitter,pending
-Dynamics Lab,,twitter,pending
+Diode Computers,,twitter,ok
+Dominion Dynamics,dominion-dynamics.com,twitter,ok
+Dyna Robotics,,twitter,ok
+Dynamics Lab,dynamicslab.ai,twitter,needs_manual
 E11 Bio,e11.bio,notion,ok
-Efference,,twitter,pending
+Efference,,twitter,needs_manual
 Elai,elai.io,notion,ok
 Epiloid Biotech,epiloid.framer.website,notion,needs_manual
 Etched,etched.com,notion,ok
 Exa Laboratories,exalaboratories.com,notion,ok
-Extropic,extropic.ai,twitter,pending
-Fauna Robotics,faunarobotics.com,twitter,pending
+Extropic,extropic.ai,twitter,ok
+Fauna Robotics,faunarobotics.com,twitter,dead
 Figma,figma.com,manual,ok
-Figure,figure.ai,twitter,pending
-Flexion,,twitter,pending
-FLORA,florafauna.ai,twitter,pending
+Figure,figure.ai,twitter,ok
+Flexion,flexion.ai,twitter,ok
+FLORA,florafauna.ai,twitter,ok
 Flyby Robotics,flybyrobotics.com,notion,needs_manual
 Forest Neurotech,forestneurotech.org,notion,ok
-GelSight,gelsight.com,twitter,pending
-Generalist AI,generalistai.com,twitter,pending
-Genesis AI,,twitter,pending
-Ginkgo Bioworks,ginkgobioworks.com,twitter,pending
-Google,google.com,twitter,pending
-Google DeepMind,deepmind.google,twitter,pending
-Gumloop,gumloop.com,twitter,pending
-Hark,,twitter,pending
-Helion Energy,helionenergy.com,twitter,pending
-hey girlie,heygirlie.app,twitter,pending
-heyclicky,,twitter,pending
-Hugging Face,huggingface.co,twitter,pending
-HumonOS,humonos.com,twitter,pending
+GelSight,gelsight.com,twitter,ok
+Generalist AI,generalistai.com,twitter,ok
+Genesis AI,,twitter,ok
+Ginkgo Bioworks,ginkgobioworks.com,twitter,ok
+Google,google.com,twitter,ok
+Google DeepMind,deepmind.google,twitter,ok
+Gumloop,gumloop.com,twitter,ok
+Hark,,twitter,ok
+Helion Energy,helionenergy.com,twitter,ok
+hey girlie,heygirlie.app,twitter,needs_manual
+heyclicky,heyclicky.com,twitter,needs_manual
+Holiday Robotics,holiday-robotics.com,manual,pending
+Hugging Face,huggingface.co,twitter,ok
+HumonOS,humonos.com,twitter,needs_manual
 HyperTunnel,hypertunnel.com,notion,ok
-Impulse Space,impulsespace.com,twitter,pending
+Impulse Space,impulsespace.com,twitter,ok
 INBRAIN Neuroelectronics,inbrain-neuroelectronics.com,notion,ok
 Integral Neurotech,integralneuro.com,notion,ok
-Interlatent,,twitter,pending
+Interlatent,,twitter,needs_manual
 Intract,intract.ca,notion,dead
-Inversion Semiconductor,,twitter,pending
-IonQ,ionq.com,twitter,pending
+Inversion Semiconductor,inversionsemi.com,twitter,needs_manual
+IonQ,ionq.com,twitter,ok
 K-Scale Labs,kscale.dev,notion,dead
 Kardium,kardium.com,notion,ok
-Kepler Communications,kepler.space,twitter,pending
+Kepler Communications,kepler.space,twitter,ok
 Kon Aerosystems,konaerosystems.com,notion,needs_manual
-Kyber Labs,,twitter,pending
-LayerZero,layerzero.network,twitter,pending
-Lodaria,,twitter,pending
+Kyber Labs,kyberlabs.ai,twitter,needs_manual
+LayerZero,layerzero.network,twitter,ok
+Lightmatter,lightmatter.co,notion,ok
+Lodaria,lodaria.com,twitter,needs_manual
 Maneva,maneva.ai,notion,ok
-Matic Robots,maticrobots.com,twitter,pending
+Matic Robots,maticrobots.com,twitter,ok
 MatX,matx.com,notion,ok
-Mechanize,mechanize.work,twitter,pending
-Mecka,mecka.ai,twitter,pending
-Medra,medra.ai,twitter,pending
-Mesh Optical,,twitter,pending
-MesoMat,mesomat.com,twitter,pending
-METR,metr.org,twitter,pending
+Mechanize,mechanize.work,twitter,ok
+Mecka,mecka.ai,twitter,ok
+Medra,medra.ai,twitter,ok
+Mesh Optical,,twitter,ok
+MesoMat,mesomat.com,twitter,ok
+METR,metr.org,twitter,ok
 Modular,modular.com,notion,ok
 Motif Neurotech,motifneuro.tech,notion,ok
 NASA,nasa.gov,notion,ok
 Neuralink,neuralink.com,notion,ok
 Neurobionics,neurobionics.io,notion,needs_manual
-Niantic Spatial,nianticspatial.com,twitter,pending
-NordSpace,nordspace.com,twitter,pending
+Niantic Spatial,nianticspatial.com,twitter,ok
+NordSpace,nordspace.com,twitter,ok
 Nudge,nudge.com,notion,ok
 Nuro,nuro.ai,manual,ok
 NVIDIA,nvidia.com,"manual,notion",ok
-Obsidian,obsidian.md,twitter,pending
-Oklo,oklo.com,twitter,pending
+Obsidian,obsidian.md,twitter,needs_manual
+Oklo,oklo.com,twitter,ok
+OmniVision,ovt.com,manual,pending
 OnDeck Fisheries AI,ondeck.fish,notion,ok
 OneCup AI,onecup.ai,notion,ok
-Opal,opalcamera.com,twitter,pending
-Oura,ouraring.com,twitter,pending
-pamir.ai,pamir.ai,twitter,pending
+Opal,opalcamera.com,twitter,ok
+Oura,ouraring.com,twitter,ok
+pamir.ai,pamir.ai,twitter,needs_manual
 Paradromics,paradromics.com,notion,ok
 Phantom Photonics,phantomphotonics.ca,notion,ok
 Physical Intelligence,physicalintelligence.company,notion,ok
-Planet Labs,planet.com,twitter,pending
-Precigenetics,,twitter,pending
+Planet Labs,planet.com,twitter,ok
+Precigenetics,precigenetics.com,twitter,needs_manual
 Precision Neuroscience,precisionneuro.io,notion,ok
-Prime Intellect,primeintellect.ai,twitter,pending
-Proception,proception.ai,twitter,pending
-Pulsar Fusion,pulsarfusion.com,twitter,pending
-Radiant,radiantnuclear.com,twitter,pending
-Radical AI,radical.ai,twitter,pending
+Prime Intellect,primeintellect.ai,twitter,ok
+Proception,proception.ai,twitter,ok
+Pulsar Fusion,pulsarfusion.com,twitter,needs_manual
+Radiant,radiantnuclear.com,twitter,ok
+Radical AI,radical.ai,twitter,needs_manual
 Rain AI,rain.ai,notion,ok
 Ramp,ramp.com,manual,ok
-Reducto,reducto.ai,twitter,pending
-Reflect Orbital,reflectorbital.com,twitter,pending
-Ricursive Intelligence,,twitter,pending
+Rebellions,rebellions.ai,manual,pending
+Reducto,reducto.ai,twitter,ok
+Reflect Orbital,reflectorbital.com,twitter,ok
+Ricursive Intelligence,ricursive.com,twitter,ok
 Saiwa,saiwa.ai,notion,ok
 Sanctuary AI,sanctuary.ai,notion,ok
 Science Corporation,science.xyz,notion,ok
-Skild AI,skild.ai,twitter,pending
+Skild AI,skild.ai,twitter,ok
 Skydio,skydio.com,manual,ok
 Sonera,sonera.io,notion,dead
-SpaceX,spacex.com,twitter,pending
-Standard Bots,standardbots.com,twitter,pending
-Standard Intelligence,,twitter,pending
-Substrate,,twitter,pending
-Sunday Robotics,,twitter,pending
+SpaceX,spacex.com,twitter,ok
+Standard Bots,standardbots.com,twitter,ok
+Standard Intelligence,,twitter,ok
+Substrate,,twitter,ok
+Sunday Robotics,,twitter,ok
+Synapse Semi,synapsesemi.org,manual,pending
 Synchron,synchron.com,notion,ok
-Taalas,taalas.com,twitter,pending
+Taalas,taalas.com,twitter,ok
+Tenace Labs,tenacelabs.com,manual,pending
 Tenomix,tenomix.com,notion,ok
 Tenstorrent,tenstorrent.com,notion,ok
-TerraFirma,,twitter,pending
-Terraform Industries,terraformindustries.com,twitter,pending
-Tesla,tesla.com,twitter,pending
-Thinking Machines Lab,thinkingmachines.ai,twitter,pending
-tnkr,tnkr.ai,twitter,pending
+TerraFirma,terrafirma.inc,twitter,ok
+Terraform Industries,terraformindustries.com,twitter,ok
+Tesla,tesla.com,twitter,ok
+Thinking Machines Lab,thinkingmachines.ai,twitter,ok
+tnkr,tnkr.ai,twitter,ok
 TRIUMF,triumf.ca,notion,ok
 TSMC,tsmc.com,notion,ok
-Turing Pi,turingpi.com,twitter,pending
+Turing Pi,turingpi.com,twitter,ok
 Untether AI,untether.ai,notion,dead
-Until,,twitter,pending
-Valar Atomics,valaratomics.com,twitter,pending
-Varda Space Industries,varda.com,twitter,pending
-Vast Space,vastspace.com,twitter,pending
-Veeda AI,,twitter,pending
-Waabi,waabi.ai,twitter,pending
-WUJI TECH,,twitter,pending
-Xona Space Systems,xonaspace.com,twitter,pending
+Until,,twitter,ok
+Valar Atomics,valaratomics.com,twitter,ok
+Varda Space Industries,varda.com,twitter,ok
+Vast Space,vastspace.com,twitter,ok
+Veeda AI,,twitter,ok
+Waabi,waabi.ai,twitter,ok
+WUJI TECH,wuji.tech,twitter,needs_manual
+Xona Space Systems,xonaspace.com,twitter,ok
 Zeromatter,0m.dev,notion,ok

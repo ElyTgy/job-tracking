@@ -36,6 +36,8 @@ def parse_csv(path: Path) -> tuple[list[dict], str]:
         source = "linkedin"
     elif "twitter" in lname or "x_" in lname:
         source = "twitter"
+    elif "manual" in lname:
+        source = "manual"
     else:
         source = "notion"
     out = []

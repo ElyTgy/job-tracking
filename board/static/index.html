@@ -94,6 +94,9 @@
                  color: var(--text); padding: 2px 0; cursor: pointer; }
   .facet label input { accent-color: var(--accent); }
   .facet .cnt { margin-left: auto; color: var(--muted); font-size: 11px; }
+  .notes { width: 100%; margin-top: 8px; min-height: 44px; resize: vertical;
+           background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+           border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 12.5px; }
 </style>
 </head>
 <body>
@@ -104,6 +107,7 @@
 <nav>
   <button id="tab-postings" class="active">Postings</button>
   <button id="tab-companies">Companies</button>
+  <button id="tab-people">People</button>
 </nav>
 
 <div id="view-postings">
@@ -160,21 +164,30 @@
   <main id="c-list"></main>
 </div>
 
+<div id="view-people" style="display:none">
+  <div class="controls">
+    <input type="search" id="pe-search" placeholder="Search people…">
+    <span class="count">add with: <code>.venv/bin/python -m scraper.people add "Name" --linkedin URL</code></span>
+  </div>
+  <main id="pe-list"></main>
+</div>
+
 <script>
-let POSTINGS = [], COMPANIES = [];
+let POSTINGS = [], COMPANIES = [], PEOPLE = [];
 const $ = (s) => document.querySelector(s);
 const esc = (s) => (s ?? "").toString().replace(/[&<>"]/g,
   (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 // ---- tabs ----
 function showTab(name) {
-  $("#view-postings").style.display = name === "postings" ? "" : "none";
-  $("#view-companies").style.display = name === "companies" ? "" : "none";
-  $("#tab-postings").classList.toggle("active", name === "postings");
-  $("#tab-companies").classList.toggle("active", name === "companies");
+  for (const t of ["postings", "companies", "people"]) {
+    $("#view-" + t).style.display = name === t ? "" : "none";
+    $("#tab-" + t).classList.toggle("active", name === t);
+  }
 }
 $("#tab-postings").onclick = () => showTab("postings");
 $("#tab-companies").onclick = () => showTab("companies");
+$("#tab-people").onclick = () => showTab("people");
 
 // ---- postings ----
 let pTag = "relevant";
@@ -445,14 +458,51 @@ function companyRow(c) {
   </div>`;
 }
 
+// ---- people ----
+$("#pe-search").addEventListener("input", renderPeople);
+const PEOPLE_STATUSES = ["to contact", "contacted", "replied", "meeting", "closed"];
+
+function renderPeople() {
+  const q = $("#pe-search").value.toLowerCase();
+  const rows = PEOPLE.filter((p) =>
+    !q || (p.name + " " + (p.title || "") + " " + (p.company || "")).toLowerCase().includes(q));
+  $("#pe-list").innerHTML = rows.length ? rows.map((p) => `<div class="row">
+    <div class="toprow">
+      <span class="comp-name">${esc(p.name)}</span>
+      ${p.title ? `<span class="count">${esc(p.title)}${p.company ? " @ " + esc(p.company) : ""}</span>` : ""}
+      <select class="status-sel" onchange="updatePerson(${p.id}, {status: this.value})">
+        ${PEOPLE_STATUSES.map((st) => `<option ${st === p.user_status ? "selected" : ""}>${st}</option>`).join("")}
+      </select>
+    </div>
+    <div class="sub">
+      ${p.linkedin_url ? `<a href="${esc(p.linkedin_url)}" target="_blank" rel="noopener">LinkedIn</a>` : ""}
+      ${p.email ? `<span class="email">${esc(p.email)}</span>
+        <button class="copy" onclick="navigator.clipboard.writeText('${esc(p.email)}');this.textContent='copied';setTimeout(()=>this.textContent='copy',900)">copy</button>` : ""}
+      ${p.email_status === "unverified" ? '<span class="unverified">unverified</span>' : ""}
+      <span class="count">added ${esc(p.added || "")}</span>
+    </div>
+    <textarea class="notes" placeholder="notes…"
+      onblur="updatePerson(${p.id}, {notes: this.value})">${esc(p.notes || "")}</textarea>
+  </div>`).join("") : "<p class='empty'>No people yet — add one with the command above.</p>";
+}
+
+async function updatePerson(id, body) {
+  await fetch(`/api/people/${id}`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  const p = PEOPLE.find((x) => x.id === id);
+  if (p) { if (body.status) p.user_status = body.status; if (body.notes != null) p.notes = body.notes; }
+}
+
 // ---- boot ----
 async function boot() {
-  const [p, c, run] = await Promise.all([
+  const [p, c, run, pe] = await Promise.all([
     fetch("/api/postings").then((r) => r.json()),
     fetch("/api/companies").then((r) => r.json()),
     fetch("/api/runs/latest").then((r) => r.json()),
+    fetch("/api/people").then((r) => r.json()),
   ]);
-  POSTINGS = p; COMPANIES = c;
+  POSTINGS = p; COMPANIES = c; PEOPLE = pe;
   POSTINGS.forEach((x) => { x.buckets = bucketize(x.location); });
   if (run && run.started) {
     $("#runinfo").textContent =
@@ -462,6 +512,7 @@ async function boot() {
   renderPostings();
   renderFacets();
   renderCompanies();
+  renderPeople();
 }
 boot();
 </script>
