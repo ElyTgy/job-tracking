@@ -219,9 +219,46 @@ def analyze():
     for p in out["us_posts"]:
         for s in (p["states"] or {"(multi-site / unspecified)"}):
             out["us_state_family"][s][p["family"]] += 1
+    # ---- export-control / ITAR overlay (US postings only) --------------------
+    try:
+        det = {r["posting_id"]: dict(r) for r in conn_details().execute(
+            "SELECT posting_id, export_status, export_regime, visa_sponsorship, export_evidence, source"
+            " FROM posting_details")}
+    except Exception:
+        det = {}
+    for p in posts:
+        d = det.get(p["id"], {})
+        p["export_status"] = d.get("export_status") or "not-checked"
+        p["export_regime"] = d.get("export_regime") or "none"
+        p["visa"] = d.get("visa_sponsorship") or "unstated"
+        p["evidence"] = d.get("export_evidence") or ""
+    us = out["us_posts"]
+    out["ec_checked"] = [p for p in us if p["export_status"] not in ("not-checked", "unknown")]
+    out["ec_status"] = Counter(p["export_status"] for p in us)
+    out["ec_regime"] = Counter(p["export_regime"] for p in us if p["export_regime"] != "none")
+    out["ec_visa"] = Counter(p["visa"] for p in us)
+    out["ec_blocked"] = [p for p in us if p["export_status"] == "us-person-required"]
+    out["ec_soft"] = [p for p in us if p["export_status"] in ("export-license-possible", "export-mentioned")]
+    out["ec_nosponsor"] = [p for p in us if p["visa"] == "no-sponsorship"]
+    # sector x status, and the headline: share of each sector's US postings that are blocked
+    out["ec_sector"] = defaultdict(Counter)
+    for p in us:
+        out["ec_sector"][p["sector"]][p["export_status"]] += 1
+    out["ec_sector_rate"] = {}
+    for sec, c in out["ec_sector"].items():
+        checked = sum(v for k, v in c.items() if k not in ("not-checked", "unknown"))
+        out["ec_sector_rate"][sec] = (c.get("us-person-required", 0), checked)
+    out["ec_family"] = defaultdict(Counter)
+    for p in us:
+        out["ec_family"][p["family"]][p["export_status"]] += 1
+    out["ec_company"] = Counter(p["company"] for p in out["ec_blocked"])
     out["posts"] = posts
     out["comps"] = comps
     return out
+
+
+def conn_details():
+    return connect()
 
 
 # --------------------------------------------------------------------------- HTML report
@@ -287,6 +324,82 @@ def stacked(matrix, families, title, subtitle=""):
     return f'<figure><figcaption><strong>{esc(title)}</strong>{(" — " + esc(subtitle)) if subtitle else ""}</figcaption><div class="legend">{legend}</div>{"".join(parts)}</figure>'
 
 
+STATUS_ORDER = ["us-person-required", "clearance-required", "export-license-possible",
+                "export-mentioned", "clear", "unknown", "not-checked"]
+STATUS_LABEL = {
+    "us-person-required": "US-person / citizenship required",
+    "clearance-required": "Government clearance / screening",
+    "export-license-possible": "Export licence may be needed",
+    "export-mentioned": "Export rules mentioned",
+    "clear": "No restriction stated",
+    "unknown": "Could not read posting",
+    "not-checked": "Not checked",
+}
+STATUS_CLS = {s: f"st{i}" for i, s in enumerate(STATUS_ORDER)}
+# status colours: st0 red (hard gate), st1 blue (clearance -- country-dependent),
+# st2/st3 amber (export language), st4 green (clear), st5/st6 grey (no data)
+
+
+def status_stacked(matrix, title, subtitle=""):
+    rows = sorted(matrix.items(), key=lambda kv: (-kv[1].get("us-person-required", 0), -sum(kv[1].values())))
+    row_h, label_w, bar_max, pad = 26, 235, 420, 8
+    mx = max(sum(c.values()) for _, c in rows)
+    h = row_h * len(rows) + 30
+    w = label_w + bar_max + 90
+    parts = [f'<svg class="chart" viewBox="0 0 {w} {h}" role="img" aria-label="{esc(title)}">']
+    for i, (k, c) in enumerate(rows):
+        y = 20 + i * row_h
+        x = label_w
+        tot = sum(c.values())
+        blocked = c.get("us-person-required", 0)
+        parts.append(f'<text class="lbl" x="{label_w - pad}" y="{y + 16}" text-anchor="end">{esc(k)}</text>')
+        for st in STATUS_ORDER:
+            v = c.get(st, 0)
+            if v <= 0:
+                continue
+            sw = max(1, round(bar_max * v / mx))
+            parts.append(f'<rect class="bar {STATUS_CLS[st]}" x="{x}" y="{y + 3}" width="{max(sw - 2, 1)}" height="18">'
+                         f'<title>{esc(k)} · {esc(STATUS_LABEL[st])}: {v}</title></rect>')
+            x += sw
+        lab = f"{blocked}/{tot}" if blocked else f"{tot}"
+        parts.append(f'<text class="val" x="{x + pad}" y="{y + 16}">{lab}</text>')
+    parts.append("</svg>")
+    legend = "".join(f'<span class="key"><i class="sw {STATUS_CLS[st]}"></i>{esc(STATUS_LABEL[st])}</span>'
+                     for st in STATUS_ORDER)
+    return (f'<figure><figcaption><strong>{esc(title)}</strong>{(" — " + esc(subtitle)) if subtitle else ""}</figcaption>'
+            f'<div class="legend">{legend}</div>{"".join(parts)}</figure>')
+
+
+def rate_bars(rate_map, title, subtitle=""):
+    """Share of each sector's checked US postings that require US-person status."""
+    items = [(k, b, t) for k, (b, t) in rate_map.items() if t]
+    items.sort(key=lambda r: (-(r[1] / r[2]), -r[2]))
+    row_h, label_w, bar_max, pad = 26, 235, 400, 8
+    h = row_h * len(items) + 30
+    w = label_w + bar_max + 130
+    parts = [f'<svg class="chart" viewBox="0 0 {w} {h}" role="img" aria-label="{esc(title)}">']
+    for i, (k, b, t) in enumerate(items):
+        y = 20 + i * row_h
+        pct = 100 * b / t
+        bw = max(2, round(bar_max * pct / 100)) if b else 0
+        parts.append(f'<g class="row"><title>{esc(k)}: {b} of {t}</title>'
+                     f'<text class="lbl" x="{label_w - pad}" y="{y + 16}" text-anchor="end">{esc(k)}</text>'
+                     f'<rect class="track" x="{label_w}" y="{y + 3}" width="{bar_max}" height="18" rx="4"/>')
+        if bw:
+            parts.append(f'<rect class="bar st0" x="{label_w}" y="{y + 3}" width="{bw}" height="18" rx="4"/>')
+        parts.append(f'<text class="val" x="{label_w + bar_max + pad}" y="{y + 16}">{pct:.0f}% '
+                     f'<tspan class="muted">({b}/{t})</tspan></text></g>')
+    parts.append("</svg>")
+    return (f'<figure><figcaption><strong>{esc(title)}</strong>{(" — " + esc(subtitle)) if subtitle else ""}</figcaption>'
+            f'{"".join(parts)}</figure>')
+
+
+def evidence_table(posts):
+    rows = [[p["company"], p["title"], p["family"], p["location"] or "(not listed)",
+             (p["evidence"] or "")[:220]] for p in sorted(posts, key=lambda p: (p["company"], p["title"]))]
+    return table(rows, ["Company", "Role", "Family", "Location", "What the posting says"])
+
+
 def table(rows, headers):
     th = "".join(f"<th>{esc(h)}</th>" for h in headers)
     body = "".join("<tr>" + "".join(f"<td>{esc(c)}</td>" for c in r) + "</tr>" for r in rows)
@@ -306,11 +419,14 @@ def posting_table(posts, with_state=False):
 
 CSS = """
 :root{--bg:#fcfcfb;--card:#ffffff;--ink:#0b0b0b;--ink2:#52514e;--muted:#8a8984;--line:#e6e5e0;
- --s0:#2a78d6;--s1:#eb6834;--s2:#1baf7a;--s3:#eda100;--s4:#e87ba4;--s5:#008300;--s6:#4a3aa7;--s7:#e34948;--other:#b8b7b1}
+ --s0:#2a78d6;--s1:#eb6834;--s2:#1baf7a;--s3:#eda100;--s4:#e87ba4;--s5:#008300;--s6:#4a3aa7;--s7:#e34948;--other:#b8b7b1;
+ --st0:#c9403f;--st1:#2a78d6;--st2:#eb6834;--st3:#eda100;--st4:#1baf7a;--st5:#b8b7b1;--st6:#e6e5e0;--track:#eeede8}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1a1a19;--card:#222221;--ink:#fff;--ink2:#c3c2b7;--muted:#8f8e88;--line:#33332f;
- --s0:#3987e5;--s1:#d95926;--s2:#199e70;--s3:#c98500;--s4:#d55181;--s5:#008300;--s6:#9085e9;--s7:#e66767;--other:#5c5b56}}
+ --s0:#3987e5;--s1:#d95926;--s2:#199e70;--s3:#c98500;--s4:#d55181;--s5:#008300;--s6:#9085e9;--s7:#e66767;--other:#5c5b56;
+ --st0:#e66767;--st1:#3987e5;--st2:#d95926;--st3:#c98500;--st4:#199e70;--st5:#5c5b56;--st6:#33332f;--track:#2b2b29}}
 :root[data-theme="dark"]{--bg:#1a1a19;--card:#222221;--ink:#fff;--ink2:#c3c2b7;--muted:#8f8e88;--line:#33332f;
- --s0:#3987e5;--s1:#d95926;--s2:#199e70;--s3:#c98500;--s4:#d55181;--s5:#008300;--s6:#9085e9;--s7:#e66767;--other:#5c5b56}
+ --s0:#3987e5;--s1:#d95926;--s2:#199e70;--s3:#c98500;--s4:#d55181;--s5:#008300;--s6:#9085e9;--s7:#e66767;--other:#5c5b56;
+ --st0:#e66767;--st1:#3987e5;--st2:#d95926;--st3:#c98500;--st4:#199e70;--st5:#5c5b56;--st6:#33332f;--track:#2b2b29}
 body{background:var(--bg);color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif;font-variant-numeric:tabular-nums;margin:0;padding:32px 20px 80px}
 main{max-width:960px;margin:0 auto}
 h1{font-size:30px;margin:0 0 4px}h2{font-size:22px;margin:48px 0 8px;padding-top:16px;border-top:1px solid var(--line)}h3{font-size:16px;margin:28px 0 6px}
@@ -323,6 +439,10 @@ figcaption{margin-bottom:8px}figcaption strong{font-weight:600}
 svg.chart{width:100%;max-width:760px;height:auto;display:block}
 .lbl{fill:var(--ink2);font-size:12px}.val{fill:var(--ink);font-size:12px}.muted{fill:var(--muted)}
 .bar.s0{fill:var(--s0)}.bar.s1{fill:var(--s1)}.bar.s2{fill:var(--s2)}.bar.s3{fill:var(--s3)}.bar.s4{fill:var(--s4)}.bar.s5{fill:var(--s5)}.bar.s6{fill:var(--s6)}.bar.s7{fill:var(--s7)}.bar.s-other{fill:var(--other)}
+.bar.st0{fill:var(--st0)}.bar.st1{fill:var(--st1)}.bar.st2{fill:var(--st2)}.bar.st3{fill:var(--st3)}.bar.st4{fill:var(--st4)}.bar.st5{fill:var(--st5)}.bar.st6{fill:var(--st6)}
+.sw.st0{background:var(--st0)}.sw.st1{background:var(--st1)}.sw.st2{background:var(--st2)}.sw.st3{background:var(--st3)}.sw.st4{background:var(--st4)}.sw.st5{background:var(--st5)}.sw.st6{background:var(--st6)}
+.track{fill:var(--track)}
+.callout{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--st0);border-radius:8px;padding:12px 16px;margin:16px 0}
 .row:hover .bar{opacity:.8}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--ink2);margin:4px 0 8px}
 .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
@@ -333,6 +453,33 @@ th{color:var(--ink2);font-weight:600;background:var(--card);position:sticky;top:
 details summary{cursor:pointer;color:var(--ink2);margin:8px 0}
 .note{color:var(--ink2);font-size:13px}
 """
+
+
+def ec_intro(a):
+    st = a["ec_status"]
+    blocked, soft = len(a["ec_blocked"]), len(a["ec_soft"])
+    checked = len(a["ec_checked"])
+    total = len(a["us_posts"])
+    unread = total - checked
+    tiles = [("US postings checked", f"{checked}/{total}"),
+             ("US-person required", blocked),
+             ("Softer export language", soft),
+             ("No visa sponsorship", len(a["ec_nosponsor"])),
+             ("No restriction stated", st.get("clear", 0))]
+    t = "".join(f'<div class="tile"><div class="l">{esc(l)}</div><div class="v">{v}</div></div>' for l, v in tiles)
+    return (f'<p class="sub">Job titles never carry this, so each US posting\'s description was fetched and read. '
+            f'<strong>{blocked} of {checked}</strong> readable US postings ({100*blocked/checked:.0f}%) require '
+            f'&ldquo;U.S. person&rdquo; status &mdash; citizen, green-card holder, refugee or asylee &mdash; which a '
+            f'Canadian citizen on a student visa is not.</p>'
+            f'<div class="tiles">{t}</div>'
+            f'<div class="callout"><strong>ITAR and EAR are not the same barrier.</strong> ITAR (defense articles) '
+            f'requires US-person status outright. EAR (dual-use technology) works by country group, and Canada is in '
+            f'the most-favoured group &mdash; so an EAR clause is usually satisfiable where an ITAR one is not. '
+            f'<strong>This cuts both ways for a dual national:</strong> EAR asks which <em>country</em> a release counts as '
+            f'going to, so a second citizenship in an embargoed country (Country Group E:1 &mdash; Iran, Cuba, North Korea, '
+            f'Syria) or in D:1 (China, Russia and others) can turn an otherwise-fine EAR role into a blocked one. '
+            f'{unread} posting(s) could not be read and are excluded from the percentages rather than assumed clear.'
+            f'</div>')
 
 
 def render(a):
@@ -401,6 +548,25 @@ def render(a):
          stacked({US_STATES.get(s, s): c for s, c in a["us_state_family"].items()}, fam_order, "Role families by US state", "top 7 families + Other"),
          hbar(a["us_companies"], "US postings by company", top=25, color_idx=3),
          "<h3>All US postings</h3>", posting_table(a["us_posts"], with_state=True),
+         "<h2>5 · ITAR &amp; export-control gates on the US postings</h2>",
+         ec_intro(a),
+         rate_bars(a["ec_sector_rate"], "Share of each sector's US postings that require US-person status",
+                   "of postings whose description could be read"),
+         status_stacked(a["ec_sector"], "US postings by sector and export-control status"),
+         status_stacked(a["ec_family"], "US postings by role family and export-control status"),
+         hbar(a["ec_company"], "Companies with US-person-gated postings", color_idx=7) if a["ec_company"] else "",
+         "<h3>Every US posting that requires US-person status</h3>", evidence_table(a["ec_blocked"]),
+         "<h3>Softer export-control language (usually workable for a Canadian)</h3>",
+         "<p class='note'>These name export rules without an explicit US-person test. Where the regime named is "
+         "<strong>EAR</strong> rather than ITAR, Canada sits in the most-favoured country group — Tenstorrent's clause, "
+         "for instance, restricts only EAR Country Groups D:1/E:1/E:2, which do not include Canada.</p>",
+         evidence_table(a["ec_soft"]),
+         "<h3>Postings that explicitly refuse visa sponsorship</h3>",
+         "<p class='note'>A separate barrier from export control, and a softer one: Canadians can often intern on "
+         "a J-1 or CPT/OPT arrangement, but these postings say no sponsorship outright.</p>",
+         table([[p["company"], p["title"], p["location"] or "(not listed)"] for p in
+                sorted(a["ec_nosponsor"], key=lambda p: (p["company"], p["title"]))],
+               ["Company", "Role", "Location"]),
          "<h2>Method notes</h2>",
          "<ul class='note'><li>Only <em>open</em> postings (closed=0) are counted. Pinned standing postings (e.g. 'Internships / Co-op' pages) count as one.</li>"
          "<li>A posting listing several locations counts in every country/state it lists, so Canada + US + elsewhere can exceed the total.</li>"

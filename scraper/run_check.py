@@ -11,7 +11,7 @@ import argparse
 import sys
 from datetime import datetime, timedelta, timezone
 
-from . import adapters, aggregators, audit, classify, db
+from . import adapters, aggregators, audit, classify, db, export_control
 
 
 def _now() -> str:
@@ -46,12 +46,17 @@ def check_company(conn, company, cfg, run_started: str) -> dict:
 
     new_count = 0
     seen_keys = set()
+    needs_body = []   # postings whose feed carried no description; fetched below
     for p in internships:
         if p["posting_key"] in seen_keys:
             continue
         seen_keys.add(p["posting_key"])
         tag, hits = classify.tag_posting(p["title"], p["department"], cfg)
         loc_ok = 1 if classify.location_ok(p["location"], cfg) else 0
+        # Eligibility gates (ITAR / US-person / visa sponsorship) live in the
+        # description, which several ATS feeds hand us for free in this same call.
+        body = export_control.to_text(p.get("description") or "")
+        gates = export_control.classify(body) if len(body) > 200 else None
         existing = conn.execute(
             "SELECT id FROM postings WHERE company_id=? AND posting_key=?",
             (company["id"], p["posting_key"]),
@@ -61,6 +66,13 @@ def check_company(conn, company, cfg, run_started: str) -> dict:
                 "UPDATE postings SET last_seen=?, closed=0, misses=0, tag=?, tag_hits=?, loc_ok=? WHERE id=?",
                 (run_started, tag, hits, loc_ok, existing["id"]),
             )
+            if gates:
+                conn.execute(
+                    "UPDATE postings SET export_status=?, export_regime=?, visa_sponsorship=?,"
+                    " export_evidence=? WHERE id=?", (*gates, existing["id"]))
+            elif not conn.execute("SELECT export_status FROM postings WHERE id=?",
+                                  (existing["id"],)).fetchone()["export_status"]:
+                needs_body.append((existing["id"], p["url"]))
         else:
             conn.execute(
                 """INSERT INTO postings (company_id, posting_key, title, url, location,
@@ -82,6 +94,20 @@ def check_company(conn, company, cfg, run_started: str) -> dict:
                 ),
             )
             new_count += 1
+            pid = conn.execute(
+                "SELECT id FROM postings WHERE company_id=? AND posting_key=?",
+                (company["id"], p["posting_key"])).fetchone()["id"]
+            if gates:
+                conn.execute(
+                    "UPDATE postings SET export_status=?, export_regime=?, visa_sponsorship=?,"
+                    " export_evidence=? WHERE id=?", (*gates, pid))
+            else:
+                needs_body.append((pid, p["url"]))
+
+    # Feeds that ship no description need one page fetch per posting. Only ever
+    # done for postings with no stored verdict, so this stays cheap after run one.
+    if needs_body:
+        export_control.enrich_missing(conn, needs_body)
 
     # Anything for this company not seen this run has disappeared from the feed.
     # Boards are flaky (pagination hiccups, rate limits), so a posting is only

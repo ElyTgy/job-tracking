@@ -52,6 +52,11 @@ CREATE TABLE IF NOT EXISTS postings (
     is_new INTEGER DEFAULT 1,   -- set on insert, cleared after the next run's digest
     closed INTEGER DEFAULT 0,
     user_status TEXT DEFAULT 'not seen',  -- not seen | seen | applied | rejected | offer
+    export_status TEXT,         -- us-person-required | export-license-possible
+                                -- | export-mentioned | clear | unknown | NULL (unread)
+    export_regime TEXT,         -- itar | ear | itar+ear | none
+    visa_sponsorship TEXT,      -- no-sponsorship | unstated
+    export_evidence TEXT,       -- the sentence that triggered export_status
     UNIQUE(company_id, posting_key)
 );
 
@@ -94,6 +99,9 @@ CREATE TABLE IF NOT EXISTS runs (
 
 
 MIGRATIONS = [
+    # audit_note / manual_note: coverage-audit findings and the user's own notes (Issues tab)
+    "ALTER TABLE companies ADD COLUMN audit_note TEXT",
+    "ALTER TABLE companies ADD COLUMN manual_note TEXT",
     # loc_ok: 1 when the posting's location matches config/locations.yaml
     "ALTER TABLE postings ADD COLUMN loc_ok INTEGER DEFAULT 1",
     # pinned: manual standing postings (e.g. "hires interns year-round") the scraper never closes
@@ -101,6 +109,16 @@ MIGRATIONS = [
     # misses: consecutive check runs in which the posting was absent from the feed;
     # closed only once this reaches 2 so a single flaky scrape can't close jobs
     "ALTER TABLE postings ADD COLUMN misses INTEGER DEFAULT 0",
+    # eligibility gates read out of the job description during the scrape.
+    # export_status: us-person-required | export-license-possible | export-mentioned
+    #                | clear | unknown | NULL (not yet read)
+    "ALTER TABLE postings ADD COLUMN export_status TEXT",
+    # export_regime: which rule the text names -- itar | ear | itar+ear | none
+    "ALTER TABLE postings ADD COLUMN export_regime TEXT",
+    # visa_sponsorship: no-sponsorship | unstated
+    "ALTER TABLE postings ADD COLUMN visa_sponsorship TEXT",
+    # the sentence that triggered the status, so the board can show its evidence
+    "ALTER TABLE postings ADD COLUMN export_evidence TEXT",
 ]
 
 
@@ -194,6 +212,9 @@ def _apply_schema(conn) -> None:
     conn.commit()
 
 
+_SCHEMA_APPLIED: dict = {}
+
+
 def connect():
     load_env()
     url = os.environ.get("TURSO_DATABASE_URL")
@@ -203,7 +224,12 @@ def connect():
         conn = _Conn(libsql.connect(url, auth_token=token))
     else:
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(DB_PATH)
+        # timeout: wait for a concurrent writer (scraper/audit runs) instead of
+        # failing the request with "database is locked".
+        conn = sqlite3.connect(DB_PATH, timeout=30)
         conn.row_factory = sqlite3.Row
-    _apply_schema(conn)
+    # Schema/migrations need a write lock; do it once per process, not per request.
+    if not _SCHEMA_APPLIED.get(str(DB_PATH)):
+        _apply_schema(conn)
+        _SCHEMA_APPLIED[str(DB_PATH)] = True
     return conn

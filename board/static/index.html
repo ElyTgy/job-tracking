@@ -100,6 +100,12 @@
   .badge.audit { background: var(--warn-soft); color: var(--warn); border: 1px solid #fde68a; }
   .audit-note { color: var(--warn); font-size: 12.5px; background: var(--warn-soft); padding: 8px 10px; border-radius: 8px; }
   .badge.closed { background: var(--exc-soft); color: var(--exc); border: 1px solid #fecaca; }
+  .badge.gate { background: #fee2e2; color: #b3272c; border: 1px solid #fca5a5; cursor: help; }
+  .badge.exp { background: #fef3c7; color: #92600e; border: 1px solid #fde68a; cursor: help; }
+  .badge.nospon { background: #ede9fe; color: #5b3fbf; border: 1px solid #ddd4fd; cursor: help; }
+  .badge.clr { background: #e0f2fe; color: #075985; border: 1px solid #bae6fd; cursor: help; }
+  #facet-elig label { cursor: pointer; }
+  .facet-note { margin: 8px 2px 0; font: 11.5px/1.45 var(--font); color: var(--muted-fg); }
   .chip { font-size: 11px; padding: 2px 8px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted-fg); background: var(--muted); }
   .chip.relevant { color: var(--accent); border-color: #bfdbfe; background: var(--accent-soft); }
   .chip.excluded-interest { color: var(--exc); border-color: #fecaca; background: var(--exc-soft); }
@@ -150,6 +156,26 @@
   #sb-toggle .ico { transition: transform .2s; }
   body.sb-collapsed #sb-toggle .ico { transform: rotate(180deg); }
 
+  .iconbtn.primary { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+  .iconbtn.primary:hover { background: #27272a; }
+  .navcount { font: 600 10.5px var(--mono); background: var(--exc-soft); color: var(--exc); border-radius: 10px; padding: 1px 6px; margin-left: 4px; }
+  .navcount:empty { display: none; }
+  .issue-reason { font-size: 12px; color: var(--warn); background: var(--warn-soft); padding: 2px 8px; border-radius: 6px; }
+  .issue-reason.err { color: var(--exc); background: var(--exc-soft); }
+  .issue-reason.dead { color: var(--muted-fg); background: var(--muted); }
+  .issue-detail { color: var(--muted-fg); font-size: 12.5px; margin-top: 6px; word-break: break-all; }
+  dialog { border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 24px; width: min(640px, 94vw);
+           box-shadow: 0 20px 60px -20px rgba(0,0,0,.35); color: var(--foreground); background: var(--card); }
+  dialog::backdrop { background: rgba(9,9,11,.35); backdrop-filter: blur(2px); }
+  #company-form { display: grid; gap: 10px; }
+  #company-form h3 { margin: 0 0 6px; font-size: 17px; }
+  #company-form label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted-fg); font-weight: 500; }
+  #company-form input, #company-form select { background: var(--card); color: var(--foreground); border: 1px solid var(--border);
+           border-radius: var(--radius-sm); padding: 8px 10px; font: 13.5px var(--font); }
+  #company-form small { font-weight: 400; font-size: 11.5px; color: var(--dim); }
+  .cf-result { font-size: 12.5px; min-height: 18px; }
+  .cf-result.ok { color: var(--new); } .cf-result.err { color: var(--exc); }
+  .cf-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   @media (max-width: 820px) { .pwrap { flex-direction: column; } #sidebar { position: static; } .facet { width: 100%; } }
@@ -165,6 +191,7 @@
   <button id="tab-postings" class="active">Postings</button>
   <button id="tab-companies">Companies</button>
   <button id="tab-people">People</button>
+  <button id="tab-issues">Issues <span class="navcount" id="issues-count"></span></button>
 </nav>
 </div>
 
@@ -193,6 +220,22 @@
   </div>
   <div class="pwrap">
     <aside id="sidebar">
+      <div class="facet" id="facet-elig">
+        <h4>Eligibility</h4>
+        <div class="opts">
+          <label title="Postings whose description requires U.S. person status (citizen, green-card holder, refugee or asylee)">
+            <input type="checkbox" id="hide-usperson" onchange="setElig('usperson', this.checked)">
+            <span>Hide US-person only</span><span class="cnt" id="cnt-usperson">0</span></label>
+          <label title="Postings that state outright that visa sponsorship is not available">
+            <input type="checkbox" id="hide-nosponsor" onchange="setElig('nosponsor', this.checked)">
+            <span>Hide &ldquo;no sponsorship&rdquo;</span><span class="cnt" id="cnt-nosponsor">0</span></label>
+          <label title="Postings naming ITAR/EAR export rules without an explicit US-person test. EAR is assessed by country, so check the quoted clause against every citizenship you hold.">
+            <input type="checkbox" id="hide-export" onchange="setElig('export', this.checked)">
+            <span>Hide export-controlled</span><span class="cnt" id="cnt-export">0</span></label>
+        </div>
+        <p class="facet-note">Clearance roles stay visible: a Canadian controlled-goods
+        screening is attainable, a US clearance is not &mdash; check the badge tooltip.</p>
+      </div>
       <div class="facet">
         <h4>Locations
           <span class="mini" onclick="facetAll('loc')">all</span>
@@ -225,9 +268,53 @@
       <option value="name">Sort: name</option>
     </select>
     <button class="iconbtn exportbtn" onclick="location.href='/api/recruiters.csv'">Export recruiters CSV</button>
+    <button class="iconbtn primary" onclick="openCompanyForm()">＋ Add company</button>
   </div>
   <main id="c-list"></main>
 </div>
+
+<div id="view-issues" style="display:none">
+  <div class="controls">
+    <input type="search" id="i-search" placeholder="Search issues…">
+    <div class="seg" id="i-filterseg">
+      <button data-f="all" class="active">All</button>
+      <button data-f="error">Failed check</button>
+      <button data-f="candidate">Unverified candidate</button>
+      <button data-f="audit">Unregistered board</button>
+      <button data-f="manual">Needs manual</button>
+      <button data-f="dead">Dead</button>
+    </div>
+    <button class="iconbtn primary exportbtn" onclick="openCompanyForm()">＋ Add company</button>
+  </div>
+  <main id="i-list"></main>
+</div>
+
+<!-- add / fix company dialog -->
+<dialog id="company-dialog">
+  <form method="dialog" id="company-form" onsubmit="return false">
+    <h3 id="cf-title">Add company</h3>
+    <label>Name <input id="cf-name" required placeholder="Exact company name"></label>
+    <label>Website <input id="cf-website" placeholder="https://example.com"></label>
+    <label>Careers page <input id="cf-careers" placeholder="https://example.com/careers"></label>
+    <label>Job board type
+      <select id="cf-ats"></select>
+    </label>
+    <label>Feed URL <input id="cf-feed" placeholder="paste the board/API URL">
+      <small id="cf-hint"></small></label>
+    <small class="count">Several boards on the same type? Join them with <code> | </code> (e.g. main + university board).</small>
+    <label>Note <input id="cf-note" placeholder="e.g. email-only: careers@…"></label>
+    <div id="cf-result" class="cf-result"></div>
+    <div class="cf-actions">
+      <button type="button" class="iconbtn" onclick="cfTest()">Test feed</button>
+      <button type="button" class="iconbtn" id="cf-probe" onclick="cfProbe()">Auto-detect</button>
+      <span style="flex:1"></span>
+      <button type="button" class="iconbtn" id="cf-manual" onclick="cfSave('needs_manual')">Save as manual-only</button>
+      <button type="button" class="iconbtn" id="cf-dead" onclick="cfSave('dead')">Mark dead</button>
+      <button type="button" class="iconbtn primary" onclick="cfSave()">Save &amp; scrape</button>
+      <button type="button" class="iconbtn" onclick="$('#company-dialog').close()">Cancel</button>
+    </div>
+  </form>
+</dialog>
 
 <div id="view-people" style="display:none">
   <div class="controls">
@@ -245,7 +332,7 @@ const esc = (s) => (s ?? "").toString().replace(/[&<>"]/g,
 
 // ---- tabs ----
 function showTab(name) {
-  for (const t of ["postings", "companies", "people"]) {
+  for (const t of ["postings", "companies", "people", "issues"]) {
     $("#view-" + t).style.display = name === t ? "" : "none";
     $("#tab-" + t).classList.toggle("active", name === t);
   }
@@ -253,6 +340,7 @@ function showTab(name) {
 $("#tab-postings").onclick = () => showTab("postings");
 $("#tab-companies").onclick = () => showTab("companies");
 $("#tab-people").onclick = () => showTab("people");
+$("#tab-issues").onclick = () => showTab("issues");
 
 // ---- postings ----
 let pTag = "relevant";
@@ -321,6 +409,29 @@ const OFF = {
   comp: new Set(JSON.parse(localStorage.getItem("compOff") ||
                 localStorage.getItem("mutedCompanies") || "[]")),
 };
+// Eligibility filters. The two hard gates default to ON (hidden) because they are
+// dead ends for a non-US-person; the softer export tier defaults to OFF/visible
+// because whether it actually blocks depends on which passports you hold.
+const ELIG = {
+  usperson: (localStorage.getItem("hideUsPerson") ?? "1") === "1",
+  nosponsor: (localStorage.getItem("hideNoSponsor") ?? "1") === "1",
+  export: (localStorage.getItem("hideExport") ?? "") === "1",
+};
+function setElig(kind, on) {
+  ELIG[kind] = on;
+  localStorage.setItem(
+    {usperson: "hideUsPerson", nosponsor: "hideNoSponsor", export: "hideExport"}[kind],
+    on ? "1" : "");
+  renderPostings(); renderFacets();
+}
+function eligBlocked(p) {
+  if (ELIG.usperson && p.export_status === "us-person-required") return true;
+  if (ELIG.nosponsor && p.visa_sponsorship === "no-sponsorship") return true;
+  if (ELIG.export && (p.export_status === "export-mentioned"
+                      || p.export_status === "export-license-possible")) return true;
+  return false;
+}
+
 function saveFacets() {
   localStorage.setItem("locOff", JSON.stringify([...OFF.loc]));
   localStorage.setItem("compOff", JSON.stringify([...OFF.comp]));
@@ -350,6 +461,7 @@ function baseRows() {  // rows passing everything EXCEPT the facet filters
     if (pTag !== "all" && p.tag !== pTag) return false;
     if (st && p.user_status !== st) return false;
     if (q && !(p.title + " " + p.company + " " + (p.location || "")).toLowerCase().includes(q)) return false;
+    if (eligBlocked(p)) return false;
     return true;
   });
 }
@@ -369,6 +481,19 @@ function facetOptions(kind) {  // [[value, count], ...] for the current base row
 }
 
 function renderFacets() {
+  // counts are of everything the eligibility filters would remove, so the labels
+  // stay meaningful while the rows themselves are hidden
+  const open = POSTINGS.filter((p) => !p.closed);
+  const n = {
+    usperson: open.filter((p) => p.export_status === "us-person-required").length,
+    nosponsor: open.filter((p) => p.visa_sponsorship === "no-sponsorship").length,
+    export: open.filter((p) => p.export_status === "export-mentioned"
+                            || p.export_status === "export-license-possible").length,
+  };
+  for (const k of ["usperson", "nosponsor", "export"]) {
+    $("#cnt-" + k).textContent = n[k];
+    $("#hide-" + k).checked = ELIG[k];
+  }
   for (const kind of ["loc", "comp"]) {
     $("#f-" + kind).innerHTML = facetOptions(kind).map(([v, n]) => `
       <label><input type="checkbox" ${OFF[kind].has(v) ? "" : "checked"}
@@ -434,6 +559,7 @@ function postingRow(p) {
       <div class="right">
         ${p.is_new ? '<span class="badge new">New</span>' : ""}
         ${p.closed ? '<span class="badge closed">Closed</span>' : ""}
+        ${eligBadges(p)}
       </div>
     </div>
     <div class="card-body">
@@ -454,6 +580,21 @@ function postingRow(p) {
       <a class="apply" href="${esc(p.url)}" target="_blank" rel="noopener">Open posting</a>
     </div>
   </div>`;
+}
+
+function eligBadges(p) {
+  const out = [];
+  const ev = p.export_evidence ? esc(p.export_evidence) : "";
+  if (p.export_status === "us-person-required")
+    out.push(`<span class="badge gate" title="${ev}">US person only</span>`);
+  else if (p.export_status === "clearance-required")
+    out.push(`<span class="badge clr" title="${ev}">Clearance</span>`);
+  else if (p.export_status === "export-mentioned" || p.export_status === "export-license-possible")
+    out.push(`<span class="badge exp" title="${ev}">Export rules${
+      p.export_regime && p.export_regime !== "none" ? " · " + esc(p.export_regime.toUpperCase()) : ""}</span>`);
+  if (p.visa_sponsorship === "no-sponsorship")
+    out.push('<span class="badge nospon" title="This posting states that visa sponsorship is not available">No sponsorship</span>');
+  return out.join(" ");
 }
 
 function toggleSidebar() {
@@ -580,6 +721,137 @@ async function updatePerson(id, body) {
   if (p) { if (body.status) p.user_status = body.status; if (body.notes != null) p.notes = body.notes; }
 }
 
+
+// ---- issues ----
+let iFilter = "all";
+function issueKind(c) {
+  const st = String(c.last_check_status || "");
+  if (c.discovery_status === "dead") return "dead";
+  if (st.startsWith("error")) return "error";
+  if (st.startsWith("unverified candidate")) return "candidate";
+  if (c.audit_note) return "audit";
+  if (c.discovery_status !== "ok") return "manual";
+  return null;
+}
+const KIND_LABEL = { error: "Failed check", candidate: "Unverified candidate", audit: "Unregistered board link", manual: "Needs manual setup", dead: "Dead / acquired" };
+$("#i-filterseg").addEventListener("click", (e) => {
+  if (!e.target.dataset.f) return;
+  iFilter = e.target.dataset.f;
+  [...$("#i-filterseg").children].forEach((b) => b.classList.toggle("active", b === e.target));
+  renderIssues();
+});
+$("#i-search").addEventListener("input", renderIssues);
+function renderIssues() {
+  const q = $("#i-search").value.toLowerCase();
+  const rows = COMPANIES.map((c) => [c, issueKind(c)]).filter(([c, k]) => k &&
+    (iFilter === "all" ? k !== "dead" : k === iFilter) &&
+    (!q || c.name.toLowerCase().includes(q)));
+  const open = COMPANIES.filter((c) => issueKind(c) && issueKind(c) !== "dead").length;
+  $("#issues-count").textContent = open || "";
+  $("#i-list").innerHTML = rows.length ? rows.map(([c, k]) => {
+    const st = String(c.last_check_status || "");
+    let detail = "";
+    if (k === "error") detail = st.replace(/^error:/, "");
+    else if (k === "candidate") detail = st + " — the company site never mentioned this board, so it was not trusted. Open it, and if it's really theirs paste the feed below.";
+    else if (k === "audit") detail = "Site links to: " + c.audit_note;
+    else if (k === "manual") detail = c.manual_note || "No machine-readable job board found yet.";
+    else if (k === "dead") detail = c.manual_note || "";
+    return `<div class="row">
+      <div class="comp-head" style="cursor:default">
+        <span class="comp-name">${esc(c.name)}</span>
+        <span class="issue-reason ${k === "error" ? "err" : k === "dead" ? "dead" : ""}">${KIND_LABEL[k]}</span>
+        ${c.ats_type ? `<span class="ats">${esc(c.ats_type)}</span>` : ""}
+        <span class="checked">
+          ${c.website ? `<a href="${esc(c.website.startsWith("http") ? c.website : "https://" + c.website)}" target="_blank" rel="noopener">site ↗</a>` : ""}
+          ${c.careers_url ? ` · <a href="${esc(c.careers_url)}" target="_blank" rel="noopener">careers ↗</a>` : ""}
+        </span>
+        <button class="iconbtn" onclick="openCompanyForm(${c.id})">Fix</button>
+      </div>
+      ${detail ? `<div class="issue-detail">${esc(detail)}</div>` : ""}
+    </div>`;
+  }).join("") : "<p class='empty'>Nothing here.</p>";
+}
+
+// ---- add / fix company form ----
+let ATS = [], cfId = null;
+async function loadAts() {
+  ATS = await fetch("/api/ats").then((r) => r.json());
+  $("#cf-ats").innerHTML = `<option value="">— none / unknown —</option>` +
+    ATS.map((a) => `<option value="${a.key}">${a.key}</option>`).join("");
+  $("#cf-ats").onchange = () => {
+    const a = ATS.find((x) => x.key === $("#cf-ats").value);
+    $("#cf-hint").textContent = a ? a.hint : "";
+  };
+}
+function openCompanyForm(id) {
+  cfId = id || null;
+  const c = id ? COMPANIES.find((x) => x.id === id) : {};
+  $("#cf-title").textContent = id ? `Fix: ${c.name}` : "Add company";
+  $("#cf-name").value = c.name || "";
+  $("#cf-website").value = c.website || "";
+  $("#cf-careers").value = c.careers_url || "";
+  $("#cf-ats").value = c.ats_type || "";
+  $("#cf-ats").onchange();
+  const cand = String(c.last_check_status || "").match(/^unverified candidate: (\S+) (\S+)/);
+  if (!c.feed_url && cand) {
+    const a = ATS.find((x) => x.key === cand[1]);
+    $("#cf-ats").value = cand[1]; $("#cf-ats").onchange();
+    $("#cf-feed").value = a ? a.hint.replace("SLUG", cand[2]) : "";
+  } else {
+    $("#cf-feed").value = c.feed_url || "";
+  }
+  $("#cf-note").value = c.manual_note || "";
+  $("#cf-result").textContent = ""; $("#cf-result").className = "cf-result";
+  $("#cf-probe").style.display = id ? "" : "none";
+  $("#cf-dead").style.display = id ? "" : "none";
+  $("#company-dialog").showModal();
+}
+function cfBody() {
+  return {
+    name: $("#cf-name").value, website: $("#cf-website").value, careers_url: $("#cf-careers").value,
+    ats_type: $("#cf-ats").value || null, feed_url: $("#cf-feed").value || null, manual_note: $("#cf-note").value,
+  };
+}
+function cfShow(msg, ok) { $("#cf-result").textContent = msg; $("#cf-result").className = "cf-result " + (ok ? "ok" : "err"); }
+async function cfTest() {
+  const b = cfBody();
+  if (!b.ats_type || !b.feed_url) return cfShow("Pick a board type and paste a feed URL first.", false);
+  cfShow("Testing…", true);
+  const r = await fetch("/api/companies/test", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ats_type: b.ats_type, feed_url: b.feed_url }) });
+  const j = await r.json();
+  if (!r.ok) return cfShow(j.detail || "failed", false);
+  cfShow(`${j.jobs} jobs, ${j.internships} internships${j.sample.length ? " — " + j.sample.join(" · ") : ""}` +
+         (j.sample_url ? `  (check ownership: ${j.sample_url})` : ""), j.jobs > 0);
+}
+async function cfProbe() {
+  if (!cfId) return;
+  cfShow("Auto-detecting… (sniffs the website for a job board)", true);
+  const r = await fetch(`/api/companies/${cfId}/probe`, { method: "POST" });
+  const j = await r.json();
+  if (!r.ok) return cfShow(j.detail || "failed", false);
+  const c = j.company;
+  $("#cf-ats").value = c.ats_type || ""; $("#cf-ats").onchange();
+  $("#cf-feed").value = c.feed_url || ""; $("#cf-careers").value = c.careers_url || "";
+  cfShow(`Result: ${j.result}${c.last_check_status ? " — " + c.last_check_status : ""}`, j.result !== "needs_manual");
+}
+async function cfSave(status) {
+  const b = cfBody();
+  if (status) b.discovery_status = status;
+  if (!status && !(b.ats_type && b.feed_url)) b.discovery_status = "needs_manual";
+  cfShow("Saving…", true);
+  const r = await fetch(cfId ? `/api/companies/${cfId}` : "/api/companies", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) });
+  const j = await r.json();
+  if (!r.ok) return cfShow(j.detail || "failed", false);
+  let msg = "Saved.";
+  if (j.check) msg += ` Scraped: ${j.check.total} internships (${j.check.new} new).`;
+  if (j.check_error) msg += ` Scrape failed: ${j.check_error}`;
+  cfShow(msg, !j.check_error);
+  await boot();
+  if (!j.check_error) setTimeout(() => $("#company-dialog").close(), 900);
+}
+
 // ---- boot ----
 async function boot() {
   const [p, c, run, pe] = await Promise.all([
@@ -599,8 +871,9 @@ async function boot() {
   renderFacets();
   renderCompanies();
   renderPeople();
+  renderIssues();
 }
-boot();
+loadAts().then(boot);
 </script>
 </body>
 </html>

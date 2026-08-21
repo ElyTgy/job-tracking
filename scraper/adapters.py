@@ -45,7 +45,10 @@ def _get_json(url: str):
 
 
 def fetch_greenhouse(feed_url: str):
-    data = _get_json(feed_url)
+    # content=true returns the full job description in the same call, which is what
+    # lets run_check read export-control / visa gates without a second request.
+    sep = "&" if "?" in feed_url else "?"
+    data = _get_json(f"{feed_url}{sep}content=true")
     return [
         {
             "posting_key": str(j["id"]),
@@ -54,6 +57,7 @@ def fetch_greenhouse(feed_url: str):
             "location": (j.get("location") or {}).get("name"),
             "department": ",".join(d["name"] for d in j.get("departments") or []),
             "posted_date": (j.get("updated_at") or "")[:10],
+            "description": j.get("content") or "",
         }
         for j in data.get("jobs", [])
     ]
@@ -70,6 +74,7 @@ def fetch_lever(feed_url: str):
             "department": (j.get("categories") or {}).get("team")
             or (j.get("categories") or {}).get("department"),
             "posted_date": "",
+            "description": j.get("descriptionPlain") or j.get("description") or "",
         }
         for j in data
     ]
@@ -85,13 +90,15 @@ def fetch_ashby(feed_url: str):
             "location": j.get("location"),
             "department": j.get("department") or j.get("team"),
             "posted_date": (j.get("publishedAt") or "")[:10],
+            "description": j.get("descriptionPlain") or j.get("descriptionHtml") or "",
         }
         for j in data.get("jobs", [])
     ]
 
 
 def fetch_workable(feed_url: str):
-    data = _get_json(feed_url)
+    sep = "&" if "?" in feed_url else "?"
+    data = _get_json(f"{feed_url}{sep}details=true")
     out = []
     for j in data.get("jobs", []):
         loc = ", ".join(filter(None, [j.get("city"), j.get("state"), j.get("country")]))
@@ -103,6 +110,8 @@ def fetch_workable(feed_url: str):
                 "location": loc,
                 "department": j.get("department"),
                 "posted_date": (j.get("published_on") or "")[:10],
+                "description": " ".join(filter(None, [j.get("description") or "",
+                                                      j.get("requirements") or ""])),
             }
         )
     return out
@@ -304,6 +313,9 @@ def fetch_jibe(feed_url: str):
                     if isinstance(j.get("category"), list)
                     else j.get("category"),
                     "posted_date": (j.get("posted_date") or "")[:10],
+                    "description": " ".join(filter(None, [
+                        j.get("description") or "", j.get("qualifications") or "",
+                        j.get("responsibilities") or ""])),
                 }
             )
         if len(out) >= data.get("totalCount", 0) or not batch:
