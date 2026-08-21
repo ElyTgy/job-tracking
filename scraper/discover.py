@@ -102,6 +102,31 @@ def sniff_site(website: str):
     return None, None, None
 
 
+def _site_text(website: str, careers_page: str | None) -> str:
+    """Lower-cased HTML of the homepage, its careers page and the first few
+    career-ish links, used to confirm that a guessed ATS slug is the company's own."""
+    if not website:
+        return ""
+    origin = website if website.startswith("http") else f"https://{website}"
+    pages = [origin] + ([careers_page] if careers_page else [])
+    text = ""
+    for url in list(pages):
+        try:
+            r = httpx.get(url, headers=UA, timeout=15, follow_redirects=True)
+        except Exception:
+            continue
+        if r.status_code != 200:
+            continue
+        text += " " + r.text.lower()
+        if url == origin:
+            for m in re.finditer(r'href="([^"#]*(?:career|job|join)[^"#]*)"', r.text, re.I):
+                u = m.group(1)
+                u = origin.rstrip("/") + u if u.startswith("/") else u
+                if u.startswith("http") and u not in pages and len(pages) < 5:
+                    pages.append(u)
+    return text.replace("%20", " ")
+
+
 def probe_company(conn, company) -> str:
     name = company["name"]
     # 1) sniff the company website for an ATS embed (most precise)
@@ -124,17 +149,29 @@ def probe_company(conn, company) -> str:
             )
             return ats
 
-    # 2) blind slug guessing against each public API
+    # 2) blind slug guessing against each public API.
+    # A guessed slug is only trusted when the company's own site references
+    # that board (Radiant/Mesh/Boom/Everstar all collided with namesakes);
+    # otherwise it is parked as an unverified candidate for manual review.
+    site_html = _site_text(company["website"], page)
     for slug in slug_candidates(name):
         for ats in ("greenhouse", "lever", "ashby", "workable", "smartrecruiters", "recruitee"):
             feed = api_url(ats, slug)
-            if feed_has_jobs(ats, feed):
+            if not feed_has_jobs(ats, feed):
+                continue
+            if site_html and slug.lower() in site_html:
                 conn.execute(
                     "UPDATE companies SET ats_type=?, feed_url=?, careers_url=?, "
                     "discovery_status='ok' WHERE id=?",
                     (ats, feed, board_url(ats, slug), company["id"]),
                 )
                 return ats
+            conn.execute(
+                "UPDATE companies SET discovery_status='needs_manual', "
+                "last_check_status=? WHERE id=?",
+                (f"unverified candidate: {ats} {slug}", company["id"]),
+            )
+            return "needs_manual"
 
     # 3) careers page exists but custom/JS — try the HTML adapter on it
     if page:

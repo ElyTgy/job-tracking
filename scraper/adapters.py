@@ -154,31 +154,53 @@ def fetch_workday(feed_url: str):
     if not m:
         raise ValueError(f"unrecognized workday feed url: {feed_url}")
     origin, _tenant, site = m.groups()
-    out, offset = [], 0
-    while True:
-        r = _request(
-            "POST",
-            feed_url,
-            headers={"Content-Type": "application/json"},
-            json={"appliedFacets": {}, "limit": 20, "offset": offset, "searchText": ""},
-        )
-        data = r.json()
-        batch = data.get("jobPostings", [])
-        for j in batch:
-            path = j.get("externalPath", "")
-            out.append(
-                {
-                    "posting_key": path or j.get("title"),
-                    "title": j.get("title", ""),
-                    "url": f"{origin}/en-US/{site}{path}" if path else None,
-                    "location": j.get("locationsText"),
-                    "department": "",
-                    "posted_date": "",
-                }
+    # Workday silently caps any listing at 2000 results (NVIDIA has >2000 jobs),
+    # so never rely on the blank listing alone: run targeted searches too.
+    out, seen = [], set()
+    for query in ("intern", "internship", "co-op", "coop", "student", ""):
+        offset, total, dry_pages = 0, None, 0
+        while True:
+            r = _request(
+                "POST",
+                feed_url,
+                headers={"Content-Type": "application/json"},
+                json={"appliedFacets": {}, "limit": 20, "offset": offset, "searchText": query},
             )
-        offset += len(batch)
-        if offset >= data.get("total", 0) or not batch:
-            return out
+            data = r.json()
+            batch = data.get("jobPostings", [])
+            if total is None:  # Workday only reports total on the first page
+                total = data.get("total", 0)
+            if query == "" and total >= 2000 and offset == 0:
+                break  # capped listing adds nothing the searches didn't find
+            if query:
+                # results are relevance-sorted and the search is fuzzy; stop once
+                # a few consecutive pages contain no intern/co-op titles at all
+                if any(re.search(r"intern|co-?op|student", j.get("title", ""), re.I) for j in batch):
+                    dry_pages = 0
+                else:
+                    dry_pages += 1
+                    if dry_pages >= 3:
+                        break
+            for j in batch:
+                path = j.get("externalPath", "")
+                key = path or j.get("title")
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(
+                    {
+                        "posting_key": key,
+                        "title": j.get("title", ""),
+                        "url": f"{origin}/en-US/{site}{path}" if path else None,
+                        "location": j.get("locationsText"),
+                        "department": "",
+                        "posted_date": "",
+                    }
+                )
+            offset += len(batch)
+            if offset >= total or not batch:
+                break
+    return out
 
 
 def fetch_html(feed_url: str):

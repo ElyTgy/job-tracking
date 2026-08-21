@@ -11,7 +11,7 @@ import argparse
 import sys
 from datetime import datetime, timedelta, timezone
 
-from . import adapters, aggregators, classify, db
+from . import adapters, aggregators, audit, classify, db
 
 
 def _now() -> str:
@@ -161,6 +161,10 @@ def main():
         agg = aggregators.run(conn, cfg, run_started)
         new_total += agg["new"]
         print(f"  aggregators: {agg['matched']} rows matched tracked companies ({agg['new']} new)")
+        try:
+            audit.main_inline(conn)
+        except Exception as e:  # noqa: BLE001
+            print(f"  audit failed: {e}", file=sys.stderr)
 
     conn.execute(
         "UPDATE runs SET finished=?, companies_checked=?, companies_failed=?, "

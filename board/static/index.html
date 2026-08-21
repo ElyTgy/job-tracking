@@ -97,6 +97,8 @@
 
   .badge { font: 600 10.5px/1 var(--font); letter-spacing: .06em; text-transform: uppercase; padding: 4px 7px; border-radius: 6px; }
   .badge.new { background: var(--new-soft); color: var(--new); border: 1px solid var(--new-line); }
+  .badge.audit { background: var(--warn-soft); color: var(--warn); border: 1px solid #fde68a; }
+  .audit-note { color: var(--warn); font-size: 12.5px; background: var(--warn-soft); padding: 8px 10px; border-radius: 8px; }
   .badge.closed { background: var(--exc-soft); color: var(--exc); border: 1px solid #fecaca; }
   .chip { font-size: 11px; padding: 2px 8px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted-fg); background: var(--muted); }
   .chip.relevant { color: var(--accent); border-color: #bfdbfe; background: var(--accent-soft); }
@@ -493,7 +495,7 @@ function renderCompanies() {
     if (cFilter === "open" && !c.open_count) return false;
     if (cFilter === "issues" &&
         !(String(c.last_check_status || "").startsWith("error") ||
-          c.discovery_status !== "ok")) return false;
+          c.discovery_status !== "ok" || c.audit_note)) return false;
     if (q && !c.name.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -530,10 +532,12 @@ function companyRow(c) {
       <span class="comp-name">${esc(c.name)}</span>
       ${c.ats_type ? `<span class="ats">${esc(c.ats_type)}</span>` : ""}
       <span class="count ${posts.length ? "has" : ""}">${posts.length} open internship${posts.length === 1 ? "" : "s"}</span>
+      ${c.audit_note ? '<span class="badge audit" title="site links to a job board not in this company\'s feed">unregistered board</span>' : ""}
       <span class="checked ${err ? "err" : ""}">${checked}</span>
     </div>
     <div class="comp-body">
       ${c.careers_url ? `<a href="${esc(c.careers_url)}" target="_blank" rel="noopener">careers page ↗</a>` : ""}
+      ${c.audit_note ? `<p class="audit-note">Site links to a board not in this feed: ${esc(c.audit_note)}</p>` : ""}
       <h4>Recruiters</h4>${recs}
       <h4>Open internships</h4>${postList}
     </div>

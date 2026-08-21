@@ -77,7 +77,7 @@ def companies():
         dict(r)
         for r in conn.execute(
             """SELECT c.id, c.name, c.website, c.careers_url, c.ats_type,
-                      c.discovery_status, c.last_checked, c.last_check_status,
+                      c.discovery_status, c.last_checked, c.last_check_status, c.audit_note,
                       (SELECT COUNT(*) FROM postings p
                        WHERE p.company_id=c.id AND p.closed=0) AS open_count
                FROM companies c ORDER BY c.name COLLATE NOCASE"""
