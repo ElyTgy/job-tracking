@@ -380,7 +380,144 @@ def fetch_kulaboard(feed_url: str):
     return out
 
 
+def fetch_eightfold(feed_url: str):
+    """Eightfold career sites via the unauthenticated pcsx search, e.g.
+    https://careers.qualcomm.com/api/pcsx/search?domain=qualcomm.com&query=intern&start=0&num=50
+    Paginates with start/num."""
+    base = re.sub(r"[&?]start=\d+", "", feed_url)
+    origin = re.match(r"https://[^/]+", feed_url).group(0)
+    out, start = [], 0
+    while True:
+        data = _get_json(f"{base}&start={start}")
+        batch = (data.get("data") or {}).get("positions") or []
+        for j in batch:
+            locs = j.get("locations") or []
+            out.append(
+                {
+                    "posting_key": str(j.get("id") or j.get("displayJobId")),
+                    "title": j.get("name", ""),
+                    "url": origin + (j.get("positionUrl") or ""),
+                    "location": "; ".join(locs) if isinstance(locs, list) else str(locs),
+                    "department": j.get("department") or "",
+                    "posted_date": "",
+                }
+            )
+        start += len(batch)
+        if not batch or start >= (data.get("data") or {}).get("count", start):
+            return out
+
+
+def fetch_rippling(feed_url: str):
+    """Rippling ATS public board, e.g.
+    https://api.rippling.com/platform/api/ats/v1/board/d-wave-quantum/jobs -> JSON array."""
+    data = _get_json(feed_url)
+    out, seen = [], set()
+    for j in data:
+        key = str(j.get("uuid") or j.get("url"))
+        if key in seen:
+            continue  # Rippling duplicates entries per job
+        seen.add(key)
+        out.append(
+            {
+                "posting_key": key,
+                "title": j.get("name", ""),
+                "url": j.get("url"),
+                "location": (j.get("workLocation") or {}).get("label"),
+                "department": (j.get("department") or {}).get("label"),
+                "posted_date": "",
+            }
+        )
+    return out
+
+
+def fetch_ukg(feed_url: str):
+    """UKG Pro (UltiPro) recruiting boards. feed_url is the LoadSearchResults endpoint, e.g.
+    https://recruiting.ultipro.ca/MAC5000MCDW/JobBoard/<guid>/JobBoardView/LoadSearchResults"""
+    board = re.sub(r"/JobBoardView/LoadSearchResults.*$", "", feed_url)
+    out, skip = [], 0
+    while True:
+        r = _request(
+            "POST", feed_url, headers={"Content-Type": "application/json"},
+            json={"opportunitySearch": {"Top": 50, "Skip": skip, "QueryString": "",
+                   "OrderBy": [{"Value": "postedDateDesc", "PropertyName": "PostedDate", "Ascending": False}],
+                   "Filters": []},
+                  "matchCriteria": {"PreferredJobs": [], "Educations": [], "LicenseAndCertifications": [],
+                                    "Skills": [], "hasNoLicenses": False, "SkippedSkills": []}},
+        )
+        data = r.json()
+        batch = data.get("opportunities") or []
+        for j in batch:
+            locs = j.get("Locations") or []
+            cities = [((l.get("Address") or {}).get("City") or "") for l in locs]
+            out.append(
+                {
+                    "posting_key": str(j.get("Id")),
+                    "title": j.get("Title", ""),
+                    "url": f"{board}/OpportunityDetail?opportunityId={j.get('Id')}",
+                    "location": ", ".join(c for c in cities if c),
+                    "department": j.get("JobCategoryName") or "",
+                    "posted_date": (j.get("PostedDate") or "")[:10],
+                }
+            )
+        skip += len(batch)
+        if not batch or skip >= data.get("totalCount", skip):
+            return out
+
+
+def fetch_adp(feed_url: str):
+    """ADP Workforce Now career center JSON, e.g.
+    https://workforcenow.adp.com/mascsr/default/careercenter/public/events/staffing/v1/job-requisitions?cid=...&ccId=...&lang=en_CA&$top=50&$skip=0"""
+    base = re.sub(r"&\$skip=\d+", "", feed_url)
+    cid = re.search(r"cid=([^&]+)", feed_url).group(1)
+    ccid = re.search(r"ccId=([^&]+)", feed_url)
+    out, skip = [], 0
+    while True:
+        data = _get_json(f"{base}&$skip={skip}")
+        batch = data.get("jobRequisitions") or []
+        for j in batch:
+            jid = j.get("itemID") or j.get("customFieldGroup", {}).get("itemID")
+            locs = j.get("requisitionLocations") or []
+            city = ", ".join(filter(None, [(l.get("address") or {}).get("cityName") for l in locs]))
+            out.append(
+                {
+                    "posting_key": str(jid),
+                    "title": j.get("requisitionTitle", ""),
+                    "url": f"https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?cid={cid}"
+                           + (f"&ccId={ccid.group(1)}" if ccid else "") + f"&jobId={jid}",
+                    "location": city,
+                    "department": "",
+                    "posted_date": (j.get("postDate") or "")[:10],
+                }
+            )
+        skip += len(batch)
+        if not batch or len(batch) < 50:
+            return out
+
+
+def fetch_hibob(feed_url: str):
+    """HiBob career sites, e.g. https://onwardmedical.careers.hibob.com/api/job-ad
+    (requires a Referer header matching the site)."""
+    origin = re.match(r"https://[^/]+", feed_url).group(0)
+    data = _request("GET", feed_url, headers={"Referer": origin + "/"}).json()
+    return [
+        {
+            "posting_key": str(j.get("id")),
+            "title": j.get("title", ""),
+            "url": f"{origin}/jobs/{j.get('id')}",
+            "location": ", ".join(filter(None, [j.get("site"), j.get("country")])),
+            "department": " / ".join(filter(None, [j.get("department"), j.get("employmentType")])),
+            "posted_date": "",
+        }
+        for j in data.get("jobAdDetails") or []
+    ]
+
+
 FETCHERS = {
+    "hibob": fetch_hibob,
+    "eightfold": fetch_eightfold,
+    "rippling": fetch_rippling,
+    "ukg": fetch_ukg,
+    "adp": fetch_adp,
     "kulaboard": fetch_kulaboard,
     "amazonjobs": fetch_amazonjobs,
     "jibe": fetch_jibe,
