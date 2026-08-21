@@ -4,8 +4,24 @@
     {
       "name": "board",
       "runtimeExecutable": ".venv/bin/uvicorn",
-      "runtimeArgs": ["board.app:app", "--port", "8787"],
+      "runtimeArgs": [
+        "board.app:app",
+        "--port",
+        "8787"
+      ],
       "port": 8787
+    },
+    {
+      "name": "board-local",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "BOARD_PASSWORD=",
+        ".venv/bin/uvicorn",
+        "board.app:app",
+        "--port",
+        "8791"
+      ],
+      "port": 8791
     }
   ]
 }
