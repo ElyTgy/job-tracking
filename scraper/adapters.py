@@ -202,6 +202,7 @@ def fetch_html(feed_url: str):
         if urlparse(url).scheme not in ("http", "https") or url in seen:
             continue
         seen.add(url)
+        text = re.sub(r"\s*\b(job post(ing)?|apply( now)?)\b\s*$", "", text, flags=re.I).strip(" :-")
         out.append(
             {
                 "posting_key": url,
@@ -231,6 +232,16 @@ def fetch_html(feed_url: str):
             continue
         if re.search(r"\b(we|our|you|your|offer|hire|hiring|apply now|learn more)\b", text, re.I):
             continue
+        # section headings under a role ("Engineering Internship Qualifications:")
+        # -> keep the role name, drop the section suffix, dedupe.
+        stripped = re.sub(
+            r"[\s:&/-]*\b(qualifications?|requirements?|responsibilities|compensation|"
+            r"benefits|description|overview|job post)\b.*$", "", text, flags=re.I).strip(" :&/-")
+        if stripped != text:
+            if not stripped or stripped.lower() in seen_titles:
+                continue
+            text = stripped
+            seen_titles.add(text.lower())
         key = f"{r.url}#{re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')}"
         if key in seen:
             continue
@@ -512,7 +523,53 @@ def fetch_hibob(feed_url: str):
     ]
 
 
+def fetch_pinpoint(feed_url: str):
+    """Pinpoint ATS: https://careers.{company}.com/postings.json -> {"data": [...]}."""
+    data = _get_json(feed_url)
+    out = []
+    for j in data.get("data", []):
+        loc = j.get("location") or {}
+        if isinstance(loc, dict):
+            loc = loc.get("name") or ", ".join(
+                x for x in (loc.get("city"), loc.get("region") or loc.get("state"), loc.get("country")) if x
+            )
+        dept = j.get("department") or {}
+        out.append(
+            {
+                "posting_key": str(j.get("id") or j.get("url")),
+                "title": (j.get("title") or "").strip(),
+                "url": j.get("url"),
+                "location": loc or "",
+                "department": dept.get("name", "") if isinstance(dept, dict) else str(dept or ""),
+                "posted_date": "",
+            }
+        )
+    return out
+
+
+def fetch_bamboohr(feed_url: str):
+    """BambooHR hosted board: https://{slug}.bamboohr.com/careers/list -> {"result": [...]}."""
+    data = _get_json(feed_url)
+    base = feed_url.split("/careers/")[0]
+    out = []
+    for j in data.get("result", []):
+        loc = j.get("location") or {}
+        out.append(
+            {
+                "posting_key": str(j["id"]),
+                "title": (j.get("jobOpeningName") or "").strip(),
+                "url": f"{base}/careers/{j['id']}",
+                "location": ", ".join(x for x in (loc.get("city"), loc.get("state")) if x),
+                "department": j.get("departmentLabel") or "",
+                "posted_date": "",
+            }
+        )
+    return out
+
+
 FETCHERS = {
+    "pinpoint": fetch_pinpoint,
+    "bamboohr": fetch_bamboohr,
     "hibob": fetch_hibob,
     "eightfold": fetch_eightfold,
     "rippling": fetch_rippling,
