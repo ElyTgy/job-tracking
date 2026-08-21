@@ -212,6 +212,39 @@ def fetch_html(feed_url: str):
                 "posted_date": "",
             }
         )
+    # Short text nodes that name an intern/co-op role but aren't links
+    # (accordion buttons, headings, cards with a separate Apply button).
+    body = re.sub(r"<(script|style|noscript)\b.*?</\1>", " ", page, flags=re.S | re.I)
+    seen_titles = {o["title"].lower() for o in out}
+    for m in re.finditer(r">([^<>]{6,90})<", body):
+        text = html_lib.unescape(m.group(1))
+        text = re.sub(r"\s+", " ", text).strip()
+        if not re.search(r"\bintern(ship)?s?\b|\bco-?op\b", text, re.I):
+            continue
+        if text.lower() in seen_titles:
+            continue
+        seen_titles.add(text.lower())
+        # prose filters: questions, sentences, generic nav words
+        if "?" in text or re.search(r"\.\s", text) or len(text.split()) > 10:
+            continue
+        if re.fullmatch(r"(intern(ship)?s?|co-?ops?|careers?|jobs?)[\s/&-]*", text, re.I):
+            continue
+        if re.search(r"\b(we|our|you|your|offer|hire|hiring|apply now|learn more)\b", text, re.I):
+            continue
+        key = f"{r.url}#{re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')}"
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(
+            {
+                "posting_key": key,
+                "title": text,
+                "url": str(r.url),
+                "location": "",
+                "department": "",
+                "posted_date": "",
+            }
+        )
     return out
 
 
@@ -311,7 +344,44 @@ def fetch_amazonjobs(feed_url: str):
             return out
 
 
+def fetch_kulaboard(feed_url: str):
+    """Kula-hosted career pages, e.g. https://careers.kula.ai/sanctuary-ai
+    Server-rendered accordion: title <p>, a details line
+    ("Co-op • Vancouver, BC, Canada • Internship • On-Site"), then an apply
+    link /{slug}/{job_id}/ — parsed structurally so class-name churn is survivable."""
+    r = _request("GET", feed_url)
+    page = r.text
+    slug = urlparse(feed_url).path.strip("/").split("/")[0]
+    out, seen = [], set()
+    # each job: a title paragraph ... an apply href to /{slug}/{digits}/
+    pat = re.compile(
+        r'<p[^>]*>([^<]{3,140})</p>\s*<div[^>]*>\s*<p[^>]*>(.*?)</p>.*?href="/' + re.escape(slug) + r'/(\d+)/?"',
+        re.S,
+    )
+    for m in pat.finditer(page):
+        title, details, job_id = m.group(1).strip(), m.group(2), m.group(3)
+        if job_id in seen:
+            continue
+        seen.add(job_id)
+        details = html_lib.unescape(re.sub(r"<[^>]+>|<!-- -->", "", details))
+        parts = [x.strip() for x in details.split("•") if x.strip()]
+        # details look like [employment type, location, category, on-site]
+        location = next((x for x in parts if "," in x), parts[1] if len(parts) > 1 else "")
+        out.append(
+            {
+                "posting_key": job_id,
+                "title": html_lib.unescape(title),
+                "url": f"https://careers.kula.ai/{slug}/{job_id}/",
+                "location": location,
+                "department": " / ".join(x for x in parts if x != location),
+                "posted_date": "",
+            }
+        )
+    return out
+
+
 FETCHERS = {
+    "kulaboard": fetch_kulaboard,
     "amazonjobs": fetch_amazonjobs,
     "jibe": fetch_jibe,
     "gem": fetch_gem,

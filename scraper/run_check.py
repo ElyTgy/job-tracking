@@ -11,7 +11,7 @@ import argparse
 import sys
 from datetime import datetime, timedelta, timezone
 
-from . import adapters, classify, db
+from . import adapters, aggregators, classify, db
 
 
 def _now() -> str:
@@ -81,7 +81,8 @@ def check_company(conn, company, cfg, run_started: str) -> dict:
 
     # Anything for this company not seen this run has disappeared from the feed.
     closed = conn.execute(
-        "UPDATE postings SET closed=1 WHERE company_id=? AND closed=0 AND last_seen<?",
+        "UPDATE postings SET closed=1 WHERE company_id=? AND closed=0 AND pinned=0 "
+        "AND department IS NOT 'via SimplifyJobs list' AND last_seen<?",
         (company["id"], run_started),
     ).rowcount
     conn.execute(
@@ -140,6 +141,11 @@ def main():
             )
             print(f"  FAIL  {c['name']}: {msg}", file=sys.stderr)
         conn.commit()
+
+    if not args.company:
+        agg = aggregators.run(conn, cfg, run_started)
+        new_total += agg["new"]
+        print(f"  aggregators: {agg['matched']} rows matched tracked companies ({agg['new']} new)")
 
     conn.execute(
         "UPDATE runs SET finished=?, companies_checked=?, companies_failed=?, "

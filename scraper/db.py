@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS postings (
     tag TEXT NOT NULL DEFAULT 'other',   -- relevant | excluded-interest | other
     tag_hits TEXT,              -- which keywords matched, for display chips
     loc_ok INTEGER DEFAULT 1,   -- location matches config/locations.yaml
+    pinned INTEGER DEFAULT 0,   -- manual standing posting; never auto-closed
     first_seen TEXT NOT NULL,
     last_seen TEXT NOT NULL,
     is_new INTEGER DEFAULT 1,   -- set on insert, cleared after the next run's digest
@@ -82,6 +83,8 @@ CREATE TABLE IF NOT EXISTS runs (
 MIGRATIONS = [
     # loc_ok: 1 when the posting's location matches config/locations.yaml
     "ALTER TABLE postings ADD COLUMN loc_ok INTEGER DEFAULT 1",
+    # pinned: manual standing postings (e.g. "hires interns year-round") the scraper never closes
+    "ALTER TABLE postings ADD COLUMN pinned INTEGER DEFAULT 0",
 ]
 
 
