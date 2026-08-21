@@ -136,6 +136,17 @@ def update_person(person_id: int, body: PersonUpdate):
     return {"ok": True}
 
 
+@app.get("/api/analysis")
+def analysis():
+    """Live sector / role / location / eligibility rollup for the Analysis tab.
+
+    Computed from the database on each request (~0.2s for a few hundred postings)
+    so the page always reflects the latest check rather than a generated snapshot.
+    """
+    from scraper.analyze import summary
+    return summary()
+
+
 @app.get("/api/runs/latest")
 def latest_run():
     conn = db.connect()

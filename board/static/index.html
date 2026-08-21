@@ -31,7 +31,10 @@
   header { display: flex; align-items: center; gap: 14px; padding: 14px 24px 0; }
   h1 { font-size: 18px; font-weight: 700; letter-spacing: -.02em; margin: 0; }
   #runinfo { color: var(--muted-fg); font-size: 12px; }
-  nav { display: flex; gap: 2px; padding: 8px 24px 0; }
+  nav { display: flex; gap: 2px; padding: 8px 24px 0; overflow-x: auto; scrollbar-width: none; }
+  nav::-webkit-scrollbar { display: none; }
+  nav button { flex: 0 0 auto; }
+  @media (max-width: 560px) { nav { padding-left: 12px; padding-right: 12px; } }
   nav button { background: none; border: none; color: var(--muted-fg); font: 500 13.5px var(--font);
                padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
   nav button:hover { color: var(--foreground); }
@@ -106,6 +109,51 @@
   .badge.clr { background: #e0f2fe; color: #075985; border: 1px solid #bae6fd; cursor: help; }
   #facet-elig label { cursor: pointer; }
   .facet-note { margin: 8px 2px 0; font: 11.5px/1.45 var(--font); color: var(--muted-fg); }
+
+  /* ---- analysis tab ---- */
+  #view-analysis { padding: 20px 24px 80px; max-width: 1100px; }
+  @media (max-width: 560px) {
+    #view-analysis { padding: 16px 12px 60px; }
+    .an-row { grid-template-columns: minmax(92px, 40%) 1fr minmax(60px, auto); gap: 8px; }
+    .an-row .k { font-size: 11.5px; }
+  }
+  .an-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
+  .an-title { margin: 0; font: 700 22px var(--font); letter-spacing: -.01em; }
+  .an-sub { margin: 4px 0 0; color: var(--muted-fg); font-size: 13px; max-width: 68ch; }
+  .an-sec { margin-top: 34px; }
+  .an-sec > h3 { margin: 0 0 4px; font: 600 15px var(--font); }
+  .an-sec > p.note { margin: 0 0 14px; color: var(--muted-fg); font-size: 12.5px; max-width: 74ch; }
+  .an-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 16px 0 4px; }
+  .an-tile { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+             padding: 12px 14px; box-shadow: var(--shadow-sm); }
+  .an-tile .l { color: var(--muted-fg); font-size: 12px; }
+  .an-tile .v { font: 600 24px var(--mono); letter-spacing: -.02em; margin-top: 2px; }
+  .an-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+             padding: 14px 16px; box-shadow: var(--shadow-sm); margin-bottom: 12px; overflow-x: auto; }
+  .an-card h4 { margin: 0 0 2px; font: 600 13.5px var(--font); }
+  .an-card .cap { margin: 0 0 10px; color: var(--muted-fg); font-size: 12px; }
+  .an-row { display: grid; grid-template-columns: minmax(120px, 210px) 1fr minmax(74px, auto);
+            align-items: center; gap: 10px; padding: 3px 0; }
+  .an-row .k { font-size: 12.5px; color: var(--foreground); text-align: right;
+               overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .an-row .v { font: 500 12px var(--mono); color: var(--muted-fg); }
+  .an-row .v b { color: var(--foreground); font-weight: 600; }
+  .an-row > .w { min-width: 0; display: block; }
+  .an-bar { display: block; height: 18px; border-radius: 5px; background: var(--accent); min-width: 2px; }
+  .an-track { display: block; height: 18px; border-radius: 5px; background: var(--muted); position: relative; }
+  .an-track > i { position: absolute; inset: 0 auto 0 0; border-radius: 5px; background: var(--exc); min-width: 2px; }
+  .an-stack { display: flex; height: 18px; border-radius: 5px; overflow: hidden; gap: 1.5px; }
+  .an-stack > i { display: block; }
+  .an-legend { display: flex; flex-wrap: wrap; gap: 5px 14px; font-size: 11.5px; color: var(--muted-fg); margin-bottom: 10px; }
+  .an-legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: 5px; vertical-align: middle; }
+  .an-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); gap: 12px; }
+  table.an-tbl { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  table.an-tbl th { text-align: left; font-weight: 600; color: var(--muted-fg); padding: 6px 8px;
+                    border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--card); }
+  table.an-tbl td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.an-tbl tr:last-child td { border-bottom: 0; }
+  .an-scroll { max-height: 460px; overflow: auto; }
+  details.an-det > summary { cursor: pointer; color: var(--accent); font-size: 12.5px; padding: 6px 0; }
   .chip { font-size: 11px; padding: 2px 8px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted-fg); background: var(--muted); }
   .chip.relevant { color: var(--accent); border-color: #bfdbfe; background: var(--accent-soft); }
   .chip.excluded-interest { color: var(--exc); border-color: #fecaca; background: var(--exc-soft); }
@@ -191,6 +239,7 @@
   <button id="tab-postings" class="active">Postings</button>
   <button id="tab-companies">Companies</button>
   <button id="tab-people">People</button>
+  <button id="tab-analysis">Analysis</button>
   <button id="tab-issues">Issues <span class="navcount" id="issues-count"></span></button>
 </nav>
 </div>
@@ -316,6 +365,17 @@
   </form>
 </dialog>
 
+<div id="view-analysis" style="display:none">
+  <div class="an-head">
+    <div>
+      <h2 class="an-title">Analysis</h2>
+      <p class="an-sub" id="an-sub">Loading live data&hellip;</p>
+    </div>
+    <button class="iconbtn" id="an-refresh" onclick="loadAnalysis(true)" title="Recompute from the database">Refresh</button>
+  </div>
+  <div id="an-body"></div>
+</div>
+
 <div id="view-people" style="display:none">
   <div class="controls">
     <input type="search" id="pe-search" placeholder="Search people…">
@@ -332,7 +392,7 @@ const esc = (s) => (s ?? "").toString().replace(/[&<>"]/g,
 
 // ---- tabs ----
 function showTab(name) {
-  for (const t of ["postings", "companies", "people", "issues"]) {
+  for (const t of ["postings", "companies", "people", "issues", "analysis"]) {
     $("#view-" + t).style.display = name === t ? "" : "none";
     $("#tab-" + t).classList.toggle("active", name === t);
   }
@@ -341,6 +401,7 @@ $("#tab-postings").onclick = () => showTab("postings");
 $("#tab-companies").onclick = () => showTab("companies");
 $("#tab-people").onclick = () => showTab("people");
 $("#tab-issues").onclick = () => showTab("issues");
+$("#tab-analysis").onclick = () => { showTab("analysis"); loadAnalysis(); };
 
 // ---- postings ----
 let pTag = "relevant";
@@ -853,6 +914,215 @@ async function cfSave(status) {
 }
 
 // ---- boot ----
+
+// ---- analysis tab -------------------------------------------------------
+// Rendered from /api/analysis, which recomputes from the database on request,
+// so this view always reflects the most recent check.
+let ANALYSIS = null, anLoading = false;
+
+const STATUS_COLOR = {
+  "us-person-required": "var(--exc)",
+  "clearance-required": "var(--accent)",
+  "export-license-possible": "#ea580c",
+  "export-mentioned": "var(--warn)",
+  "clear": "var(--new)",
+  "unknown": "var(--dim)",
+  "not-checked": "var(--border-hi)",
+};
+
+function anBars(items, opts = {}) {
+  const { color = "var(--accent)", total, top } = opts;
+  const rows = top ? items.slice(0, top) : items;
+  if (!rows.length) return '<p class="cap">Nothing to show.</p>';
+  const max = Math.max(...rows.map((r) => r.n), 1);
+  const denom = total ?? rows.reduce((a, r) => a + r.n, 0);
+  return rows.map((r) => {
+    const pct = denom ? Math.round((100 * r.n) / denom) : 0;
+    return `<div class="an-row" title="${esc(r.name)}: ${r.n}">
+      <span class="k">${esc(r.name)}</span>
+      <span class="w"><span class="an-bar" style="width:${Math.max(2, (100 * r.n) / max)}%;background:${color}"></span></span>
+      <span class="v"><b>${r.n}</b> ${denom ? `${pct}%` : ""}</span></div>`;
+  }).join("");
+}
+
+function anStack(rows, order, labels) {
+  const max = Math.max(...rows.map((r) => r.total), 1);
+  const legend = order.map((k) =>
+    `<span><i style="background:${STATUS_COLOR[k] || "var(--dim)"}"></i>${esc(labels[k] || k)}</span>`).join("");
+  const body = rows.map((r) => {
+    const segs = order.filter((k) => r.statuses[k]).map((k) =>
+      `<i style="flex:${r.statuses[k]};background:${STATUS_COLOR[k] || "var(--dim)"}"
+          title="${esc(r.name)} · ${esc(labels[k] || k)}: ${r.statuses[k]}"></i>`).join("");
+    return `<div class="an-row">
+      <span class="k">${esc(r.name)}</span>
+      <span class="w"><span class="an-stack" style="width:${Math.max(4, (100 * r.total) / max)}%">${segs}</span></span>
+      <span class="v"><b>${r.total}</b></span></div>`;
+  }).join("");
+  return `<div class="an-legend">${legend}</div>${body}`;
+}
+
+function anRate(rows) {
+  return rows.map((r) => {
+    const pct = r.checked ? (100 * r.gated) / r.checked : 0;
+    return `<div class="an-row" title="${esc(r.name)}: ${r.gated} of ${r.checked} readable postings">
+      <span class="k">${esc(r.name)}</span>
+      <span class="w"><span class="an-track"><i style="width:${pct}%"></i></span></span>
+      <span class="v"><b>${Math.round(pct)}%</b> ${r.gated}/${r.checked}</span></div>`;
+  }).join("");
+}
+
+function anTable(rows, cols) {
+  if (!rows.length) return '<p class="cap">None.</p>';
+  return `<div class="an-scroll"><table class="an-tbl"><thead><tr>${
+    cols.map((c) => `<th>${esc(c[0])}</th>`).join("")}</tr></thead><tbody>${
+    rows.map((r) => `<tr>${cols.map((c) => `<td>${c[1](r)}</td>`).join("")}</tr>`).join("")
+  }</tbody></table></div>`;
+}
+
+const anLink = (r) => r.url
+  ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>` : esc(r.title);
+
+function anCard(title, cap, inner) {
+  return `<div class="an-card"><h4>${esc(title)}</h4>${
+    cap ? `<p class="cap">${cap}</p>` : ""}${inner}</div>`;
+}
+
+function anError(msg, hint) {
+  $("#an-sub").textContent = msg;
+  $("#an-body").innerHTML =
+    `<div class="an-card"><h4>Analysis unavailable</h4><p class="cap">${esc(msg)}</p>${
+      hint ? `<p class="cap">${hint}</p>` : ""}</div>`;
+}
+
+async function loadAnalysis(force) {
+  if (anLoading) return;
+  if (ANALYSIS && !force) return;
+  anLoading = true;
+  $("#an-sub").textContent = "Recomputing from the database…";
+  try {
+    const r = await fetch("/api/analysis");
+    // A 404 still returns valid JSON ({"detail":"Not Found"}), so checking r.ok
+    // matters -- without it a missing route reads as a successful empty result.
+    if (!r.ok) {
+      anError(`The server returned HTTP ${r.status} for /api/analysis.`,
+        r.status === 404
+          ? "This board process started before the Analysis tab existed. Restart it "
+            + "(<code>make serve</code>) — or redeploy, if this is the hosted board."
+          : "");
+      return;
+    }
+    const data = await r.json();
+    if (!data || !data.totals) {
+      anError("The analysis response was not in the expected shape.");
+      return;
+    }
+    ANALYSIS = data;
+    renderAnalysis();
+  } catch (e) {
+    ANALYSIS = null;
+    anError("Could not load analysis: " + e, "Is the board server still running?");
+  } finally {
+    anLoading = false;
+  }
+}
+
+function renderAnalysis() {
+  const a = ANALYSIS, t = a.totals, e = a.eligibility;
+  const L = a.status_label, O = a.status_order;
+  $("#an-sub").innerHTML =
+    `${t.companies} companies · ${t.postings} open postings · ${t.companies_with_postings} hiring. `
+    + `Computed live from the database.`;
+
+  const tile = (l, v) => `<div class="an-tile"><div class="l">${esc(l)}</div><div class="v">${v}</div></div>`;
+  const secByPostings = [...a.sectors].filter((s) => s.postings).sort((x, y) => y.postings - x.postings);
+  const gatedSectors = [...a.sectors].filter((s) => s.checked)
+    .sort((x, y) => (y.gated / y.checked) - (x.gated / x.checked) || y.checked - x.checked);
+  const blockedPct = e.checked ? Math.round((100 * e.blocked.length) / e.checked) : 0;
+
+  const html = [];
+
+  html.push(`<div class="an-tiles">
+    ${tile("Companies", t.companies)}${tile("With open roles", t.companies_with_postings)}
+    ${tile("Open postings", t.postings)}${tile("In Canada", t.canada)}
+    ${tile("In the US", t.us)}${tile("Elsewhere", t.other)}</div>`);
+
+  // 1. sectors
+  html.push(`<div class="an-sec"><h3>What these companies work in</h3>
+    <div class="an-grid2">
+      ${anCard("Companies by sector", "", anBars(a.sectors.map((s) => ({name: s.name, n: s.companies}))))}
+      ${anCard("Open postings by sector", "", anBars(secByPostings.map((s) => ({name: s.name, n: s.postings})), {color: "#ea580c"}))}
+    </div></div>`);
+
+  // 2. roles
+  html.push(`<div class="an-sec"><h3>Roles on offer</h3>
+    <div class="an-grid2">
+      ${anCard("Role families", "", anBars(a.families.map((f) => ({name: f.name, n: f.all}))))}
+      ${anCard("Companies with the most openings", "top 20", anBars(a.top_companies, {color: "var(--warn)"}))}
+    </div></div>`);
+
+  // 3. canada
+  const ca = a.canada;
+  html.push(`<div class="an-sec"><h3>Canada &mdash; ${ca.postings} postings</h3>
+    <div class="an-grid2">
+      ${anCard("By role family", "", anBars(ca.families))}
+      ${anCard("By sector", "", anBars(ca.sectors, {color: "#ea580c"}))}
+      ${anCard("By city", "", anBars(ca.cities, {color: "var(--new)"}))}
+      ${anCard("By company", "", anBars(ca.companies, {color: "var(--warn)"}))}
+    </div>
+    ${anCard("Every Canadian posting", "", anTable(ca.rows, [
+      ["Company", (r) => esc(r.company)], ["Role", anLink],
+      ["Family", (r) => esc(r.family)], ["Location", (r) => esc(r.location || "—")]]))}
+    </div>`);
+
+  // 4. us
+  const us = a.us;
+  html.push(`<div class="an-sec"><h3>United States &mdash; ${us.postings} postings</h3>
+    <p class="note">Multi-site postings count once per state and city named.</p>
+    <div class="an-grid2">
+      ${anCard("By state", "", anBars(us.states))}
+      ${anCard("By city", "top 25", anBars(us.cities, {color: "var(--new)"}))}
+      ${anCard("By role family", "", anBars(us.families))}
+      ${anCard("By sector", "", anBars(us.sectors, {color: "#ea580c"}))}
+    </div></div>`);
+
+  // 5. eligibility
+  html.push(`<div class="an-sec"><h3>Eligibility gates on the US postings</h3>
+    <p class="note"><b>${e.blocked.length} of ${e.checked}</b> readable US postings (${blockedPct}%) need
+    &ldquo;U.S. person&rdquo; status. ITAR requires it outright; EAR goes by country group, so check the
+    quoted clause against every passport you hold.</p>
+    <div class="an-tiles">
+      ${tile("Checked", `${e.checked}/${e.total}`)}
+      ${tile("US-person only", e.blocked.length)}
+      ${tile("Export language", e.soft.length)}
+      ${tile("Clearance", e.clearance.length)}
+      ${tile("No sponsorship", e.nosponsor.length)}
+    </div>
+    ${anCard("Share of each sector's US postings needing US-person status", "", anRate(gatedSectors))}
+    ${anCard("US postings by sector and status", "",
+             anStack(gatedSectors.map((s) => ({name: s.name, total: s.us, statuses: s.statuses})), O, L))}
+    ${anCard("US postings by role family and status", "",
+             anStack(a.families.filter((f) => f.us).map((f) => ({name: f.name, total: f.us, statuses: f.statuses}))
+                      .sort((x, y) => (y.statuses["us-person-required"] || 0) - (x.statuses["us-person-required"] || 0)), O, L))}
+    ${anCard("Companies with US-person-gated postings", "", anBars(e.blocked_companies, {color: "var(--exc)"}))}
+    ${anCard("Every posting requiring US-person status", "", anTable(e.blocked, [
+      ["Company", (r) => esc(r.company)], ["Role", anLink], ["Location", (r) => esc(r.location || "—")],
+      ["What the posting says", (r) => esc(r.evidence)]]))}
+    ${anCard("Export-control language without a US-person test", "",
+             anTable(e.soft, [
+      ["Company", (r) => esc(r.company)], ["Role", anLink],
+      ["Regime", (r) => esc((r.regime || "").toUpperCase().replace("NONE", "—"))],
+      ["What the posting says", (r) => esc(r.evidence)]]))}
+    ${anCard("Government clearance / screening", "Country matters.", anTable(e.clearance, [
+      ["Company", (r) => esc(r.company)], ["Role", anLink], ["Location", (r) => esc(r.location || "—")],
+      ["What the posting says", (r) => esc(r.evidence)]]))}
+    ${anCard("Postings that refuse visa sponsorship", "",
+             anTable(e.nosponsor, [
+      ["Company", (r) => esc(r.company)], ["Role", anLink], ["Location", (r) => esc(r.location || "—")]]))}
+    </div>`);
+
+  $("#an-body").innerHTML = html.join("");
+}
+
 async function boot() {
   const [p, c, run, pe] = await Promise.all([
     fetch("/api/postings").then((r) => r.json()),

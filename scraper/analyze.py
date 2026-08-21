@@ -261,6 +261,100 @@ def conn_details():
     return connect()
 
 
+# --------------------------------------------------------------------------- JSON summary
+def _pairs(counter, top=None):
+    items = counter.most_common(top) if top else counter.most_common()
+    return [{"name": k, "n": v} for k, v in items]
+
+
+def _posting_rows(posts, with_evidence=False):
+    out = []
+    for p in sorted(posts, key=lambda p: (p["company"], p["title"])):
+        row = {"company": p["company"], "title": p["title"], "family": p["family"],
+               "sector": p["sector"], "location": p["location"] or "",
+               "url": p["url"], "states": sorted(p["states"])}
+        if with_evidence:
+            row["status"] = p["export_status"]
+            row["regime"] = p["export_regime"]
+            row["visa"] = p["visa"]
+            row["evidence"] = p["evidence"]
+        out.append(row)
+    return out
+
+
+def summary():
+    """Everything the board's Analysis tab needs, as plain JSON-safe data."""
+    a = analyze()
+    co = a["country"]
+    sectors = []
+    for sec, n in a["sector_companies"].most_common():
+        blocked, checked = a["ec_sector_rate"].get(sec, (0, 0))
+        sectors.append({
+            "name": sec, "companies": n,
+            "companies_with_postings": a["sector_companies_with_posts"].get(sec, 0),
+            "postings": a["sector_posts"].get(sec, 0),
+            "ca": a["ca_sector"].get(sec, 0), "us": a["us_sector"].get(sec, 0),
+            "gated": blocked, "checked": checked,
+            "statuses": dict(a["ec_sector"].get(sec, {})),
+        })
+    families = [{"name": f, "all": n, "ca": a["ca_family"].get(f, 0), "us": a["us_family"].get(f, 0),
+                 "statuses": dict(a["ec_family"].get(f, {}))}
+                for f, n in a["family_all"].most_common()]
+
+    ca_city = Counter()
+    for p in a["ca_posts"]:
+        low = (p["location"] or p["title"]).lower()
+        city = next((c for c in ["toronto", "vancouver", "waterloo", "montreal", "montréal",
+                                 "sainte-anne", "brampton", "quebec", "québec", "hamilton",
+                                 "whitby", "ottawa"] if c in low), "unspecified")
+        ca_city[{"sainte-anne": "Sainte-Anne-de-Bellevue", "québec": "Quebec City",
+                 "quebec": "Quebec City", "montréal": "Montréal"}.get(city, city.title())] += 1
+
+    return {
+        "totals": {
+            "companies": a["n_companies"], "active": a["n_active"],
+            "postings": a["n_posts"], "companies_with_postings": a["companies_with_posts"],
+            "canada": co.get("CA", 0), "us": co.get("US", 0),
+            "other": co.get("OTHER", 0), "unknown": co.get("UNKNOWN", 0),
+        },
+        "tags": dict(a["tag"]),
+        "sectors": sectors,
+        "families": families,
+        "top_companies": _pairs(a["top_companies"], 20),
+        "canada": {
+            "postings": len(a["ca_posts"]),
+            "companies": _pairs(a["ca_companies"]),
+            "cities": _pairs(ca_city),
+            "sectors": _pairs(a["ca_sector"]),
+            "families": _pairs(a["ca_family"]),
+            "rows": _posting_rows(a["ca_posts"], with_evidence=True),
+        },
+        "us": {
+            "postings": len(a["us_posts"]),
+            "companies": _pairs(a["us_companies"], 25),
+            "states": [{"name": US_STATES.get(k, k), "n": v} for k, v in a["us_states"].most_common()],
+            "cities": _pairs(a["us_cities"], 25),
+            "sectors": _pairs(a["us_sector"]),
+            "families": _pairs(a["us_family"]),
+        },
+        "eligibility": {
+            "checked": len(a["ec_checked"]), "total": len(a["us_posts"]),
+            "status_counts": dict(a["ec_status"]),
+            "regimes": dict(a["ec_regime"]),
+            "visa": dict(a["ec_visa"]),
+            "blocked_companies": _pairs(a["ec_company"]),
+            "blocked": _posting_rows(a["ec_blocked"], with_evidence=True),
+            "soft": _posting_rows(a["ec_soft"], with_evidence=True),
+            "clearance": _posting_rows(
+                [p for p in a["posts"] if p["export_status"] == "clearance-required"],
+                with_evidence=True),
+            "nosponsor": _posting_rows(a["ec_nosponsor"], with_evidence=True),
+        },
+        "status_order": STATUS_ORDER,
+        "status_label": STATUS_LABEL,
+    }
+
+
 # --------------------------------------------------------------------------- HTML report
 PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
 PALETTE_DARK = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"]
