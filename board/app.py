@@ -27,7 +27,7 @@ def postings():
     conn = db.connect()
     rows = conn.execute(
         """SELECT p.id, p.title, p.url, p.location, p.department, p.tag, p.tag_hits,
-                  p.loc_ok, p.first_seen, p.is_new, p.closed, p.user_status,
+                  p.loc_ok, p.first_seen, p.last_seen, p.is_new, p.closed, p.user_status,
                   c.name AS company, c.id AS company_id
            FROM postings p JOIN companies c ON c.id = p.company_id
            ORDER BY p.is_new DESC, p.first_seen DESC, c.name COLLATE NOCASE"""

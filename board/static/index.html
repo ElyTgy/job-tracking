@@ -182,7 +182,12 @@
       <option>not seen</option><option>seen</option><option>applied</option>
       <option>rejected</option><option>offer</option>
     </select>
-    <label class="count" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="p-closed"> show closed</label>
+    <select id="p-closed" title="Open = still live. Missed = taken down before you marked them seen/applied. Closed = everything taken down.">
+      <option value="open">Open only</option>
+      <option value="missed">Missed (taken down, never seen)</option>
+      <option value="closed">All closed</option>
+      <option value="all">Open + closed</option>
+    </select>
   </div>
   <div class="pwrap">
     <aside id="sidebar">
@@ -335,9 +340,11 @@ function expandCompany(name) { expanded.add(name); renderPostings(); }
 function baseRows() {  // rows passing everything EXCEPT the facet filters
   const q = $("#p-search").value.toLowerCase();
   const st = $("#p-status").value;
-  const showClosed = $("#p-closed").checked;
+  const cmode = $("#p-closed").value;
   return POSTINGS.filter((p) => {
-    if (!showClosed && p.closed) return false;
+    if (cmode === "open" && p.closed) return false;
+    if (cmode === "closed" && !p.closed) return false;
+    if (cmode === "missed" && !(p.closed && p.user_status === "not seen")) return false;
     if (pTag !== "all" && p.tag !== pTag) return false;
     if (st && p.user_status !== st) return false;
     if (q && !(p.title + " " + p.company + " " + (p.location || "")).toLowerCase().includes(q)) return false;
@@ -420,7 +427,7 @@ function postingRow(p) {
       <span class="avatar">${esc(initial)}</span>
       <div>
         <div class="company-link" onclick="gotoCompany(${p.company_id})">${esc(p.company)}</div>
-        <div class="meta">first seen ${esc((p.first_seen || "").slice(0, 10))}</div>
+        <div class="meta">first seen ${esc((p.first_seen || "").slice(0, 10))}${p.closed ? ` · taken down ~${esc((p.last_seen || "").slice(0, 10))}` : ""}</div>
       </div>
       <div class="right">
         ${p.is_new ? '<span class="badge new">New</span>' : ""}

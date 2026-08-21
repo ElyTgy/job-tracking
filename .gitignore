@@ -4,3 +4,5 @@ __pycache__/
 logs/
 data/tracker.db
 inputs/
+.playwright-mcp/
+.DS_Store
