@@ -32,7 +32,11 @@ def recently_ran(conn, hours: float = 40.0) -> bool:
 
 def check_company(conn, company, cfg, run_started: str) -> dict:
     fetcher = adapters.FETCHERS[company["ats_type"]]
-    postings = fetcher(company["feed_url"] or company["careers_url"])
+    # A company may have several boards on the same ATS (e.g. a separate
+    # university/early-careers board): feed_url holds them joined by " | ".
+    postings = []
+    for feed in (company["feed_url"] or company["careers_url"]).split(" | "):
+        postings.extend(fetcher(feed.strip()))
     internships = [
         p
         for p in postings
@@ -54,7 +58,7 @@ def check_company(conn, company, cfg, run_started: str) -> dict:
         ).fetchone()
         if existing:
             conn.execute(
-                "UPDATE postings SET last_seen=?, closed=0, tag=?, tag_hits=?, loc_ok=? WHERE id=?",
+                "UPDATE postings SET last_seen=?, closed=0, misses=0, tag=?, tag_hits=?, loc_ok=? WHERE id=?",
                 (run_started, tag, hits, loc_ok, existing["id"]),
             )
         else:
@@ -80,11 +84,22 @@ def check_company(conn, company, cfg, run_started: str) -> dict:
             new_count += 1
 
     # Anything for this company not seen this run has disappeared from the feed.
-    closed = conn.execute(
-        "UPDATE postings SET closed=1 WHERE company_id=? AND closed=0 AND pinned=0 "
-        "AND department IS NOT 'via SimplifyJobs list' AND last_seen<?",
-        (company["id"], run_started),
-    ).rowcount
+    # Boards are flaky (pagination hiccups, rate limits), so a posting is only
+    # closed after it has been missing on two consecutive runs -- and never when
+    # the feed came back completely empty, which almost always means the scrape
+    # itself failed rather than every job being pulled.
+    closed = 0
+    if postings:
+        conn.execute(
+            "UPDATE postings SET misses=misses+1 WHERE company_id=? AND closed=0 AND pinned=0 "
+            "AND department IS NOT 'via SimplifyJobs list' AND last_seen<?",
+            (company["id"], run_started),
+        )
+        closed = conn.execute(
+            "UPDATE postings SET closed=1 WHERE company_id=? AND closed=0 AND pinned=0 "
+            "AND department IS NOT 'via SimplifyJobs list' AND misses>=2",
+            (company["id"],),
+        ).rowcount
     conn.execute(
         "UPDATE companies SET last_checked=?, last_check_status='ok' WHERE id=?",
         (run_started, company["id"]),

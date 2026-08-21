@@ -85,6 +85,9 @@ MIGRATIONS = [
     "ALTER TABLE postings ADD COLUMN loc_ok INTEGER DEFAULT 1",
     # pinned: manual standing postings (e.g. "hires interns year-round") the scraper never closes
     "ALTER TABLE postings ADD COLUMN pinned INTEGER DEFAULT 0",
+    # misses: consecutive check runs in which the posting was absent from the feed;
+    # closed only once this reaches 2 so a single flaky scrape can't close jobs
+    "ALTER TABLE postings ADD COLUMN misses INTEGER DEFAULT 0",
 ]
 
 
