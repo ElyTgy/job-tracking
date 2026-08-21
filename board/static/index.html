@@ -80,8 +80,20 @@
   .mute-btn { font-size: 10.5px; color: var(--muted); border: 1px solid var(--border);
               border-radius: 8px; padding: 0 6px; cursor: pointer; opacity: .6; }
   .mute-btn:hover { opacity: 1; color: var(--exc); border-color: var(--exc); }
-  .farloc { font-size: 10.5px; color: #eab308; border: 1px solid #eab308;
-            border-radius: 8px; padding: 0 5px; }
+  .pwrap { display: flex; gap: 18px; padding: 0 24px 60px; align-items: flex-start; }
+  .pwrap main { flex: 1; padding: 0; min-width: 0; }
+  #sidebar { flex: 0 0 232px; position: sticky; top: 12px; }
+  .facet { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 12px; margin-bottom: 12px; }
+  .facet h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase;
+              letter-spacing: .05em; color: var(--muted); display: flex; align-items: baseline; }
+  .facet .mini { font-size: 11px; color: var(--accent); cursor: pointer;
+                 margin-left: 10px; text-transform: none; letter-spacing: 0; }
+  .facet .opts { max-height: 300px; overflow-y: auto; }
+  .facet label { display: flex; gap: 7px; align-items: center; font-size: 12.5px;
+                 color: var(--text); padding: 2px 0; cursor: pointer; }
+  .facet label input { accent-color: var(--accent); }
+  .facet .cnt { margin-left: auto; color: var(--muted); font-size: 11px; }
 </style>
 </head>
 <body>
@@ -108,15 +120,27 @@
       <option>not seen</option><option>seen</option><option>applied</option>
       <option>rejected</option><option>offer</option>
     </select>
-    <select id="p-company"><option value="">All companies</option></select>
-    <div class="seg" id="p-locseg">
-      <button data-loc="pref" class="active">Preferred locations</button>
-      <button data-loc="all">Anywhere</button>
-    </div>
     <label style="color:var(--muted)"><input type="checkbox" id="p-closed"> show closed</label>
-    <span id="p-muted" class="chip" style="display:none;cursor:pointer"></span>
   </div>
-  <main id="p-list"></main>
+  <div class="pwrap">
+    <aside id="sidebar">
+      <div class="facet">
+        <h4>Locations
+          <span class="mini" onclick="facetAll('loc')">all</span>
+          <span class="mini" onclick="facetNone('loc')">none</span>
+        </h4>
+        <div class="opts" id="f-loc"></div>
+      </div>
+      <div class="facet">
+        <h4>Companies
+          <span class="mini" onclick="facetAll('comp')">all</span>
+          <span class="mini" onclick="facetNone('comp')">none</span>
+        </h4>
+        <div class="opts" id="f-comp"></div>
+      </div>
+    </aside>
+    <main id="p-list"></main>
+  </div>
 </div>
 
 <div id="view-companies" style="display:none">
@@ -154,55 +178,144 @@ $("#tab-companies").onclick = () => showTab("companies");
 
 // ---- postings ----
 let pTag = "relevant";
-let pLoc = "pref";
 const COLLAPSE_AT = 5, COLLAPSE_SHOW = 3;
 const expanded = new Set();
-const MUTED = new Set(JSON.parse(localStorage.getItem("mutedCompanies") || "[]"));
+
+// location buckets: a posting can belong to several (multi-location strings)
+const LOC_RULES = [
+  ["Remote", ["remote"]],
+  ["Canada", ["canada", ", can", "toronto", "vancouver", "montreal", "montréal",
+    "waterloo", "ottawa", "burnaby", "markham", "edmonton", "calgary", "ontario",
+    "british columbia", ", bc", "quebec"]],
+  ["Boston / MA", ["boston", "massachusetts", ", ma,", ", ma ", "cambridge, ma",
+    "north reading", "waltham", "devens", "somerville", "glen cove"]],
+  ["California", ["california", "san francisco", "bay area", "los angeles",
+    "san diego", "san jose", "mountain view", "palo alto", "menlo park",
+    "sunnyvale", "santa clara", "berkeley", "alameda", "el segundo", "long beach",
+    "irvine", "costa mesa", "hawthorne", "redondo", "burbank", "fremont",
+    "oakland", "cupertino", ", ca,", ", ca "]],
+  ["New York", ["new york", ", ny", "nyc", "brooklyn", "manhattan"]],
+  ["Seattle / WA", ["seattle", "bellevue", "redmond", ", wa,", ", wa "]],
+  ["Texas", ["austin", "texas", ", tx", "houston", "dallas", "plano", "brownsville"]],
+  ["Other US", ["united states", "usa", ", co", "denver", "colorado", "pittsburgh",
+    "pennsylvania", ", pa", "chicago", "illinois", "phoenix", "arizona", ", az",
+    "atlanta", "georgia", "michigan", "minnesota", "north carolina", "virginia",
+    "maryland", "washington, dc", "d.c.", "utah", "oregon", "idaho", "tennessee",
+    "florida", "ohio", "nevada", "new jersey", "detroit"]],
+  ["Europe", ["london", "united kingdom", ", uk", ", gbr", "england", "germany",
+    "berlin", "munich", "paris", "france", "dublin", "ireland", ", irl",
+    "amsterdam", "netherlands", "barcelona", "spain", "finland", "helsinki",
+    "oulu", "zurich", "switzerland", "milton keynes", "luxembourg", "sweden",
+    "stockholm", "poland", "italy", "lombardia", "romania"]],
+  ["Asia", ["china", ", chn", "beijing", "shanghai", "shenzhen", "tokyo", "japan",
+    ", jpn", "india", ", ind", "bengaluru", "bangalore", "hyderabad", "chennai",
+    "singapore", ", sgp", "taiwan", "taipei", "seoul", "korea", "vietnam",
+    "israel", "tel aviv"]],
+  ["Other intl", ["australia", ", aus", "sydney", "melbourne", "new zealand",
+    "brazil", ", bra", "mexico", "africa", ", zaf", "cape town", "colombia",
+    "costa rica", "argentina", "chile"]],
+];
+// bare ISO-3166 codes (Amazon writes locations like "BRA", "CHN", "IRL")
+const CODE_RULES = {
+  "Canada": ["can"], "Other US": ["usa"],
+  "Europe": ["gbr", "irl", "deu", "fra", "esp", "ita", "nld", "pol", "cze", "rou",
+             "lux", "swe", "fin", "che", "aut", "bel", "prt", "dnk", "nor", "hun"],
+  "Asia": ["chn", "jpn", "ind", "sgp", "twn", "kor", "vnm", "phl", "idn", "tha",
+           "isr", "are", "sau", "hkg", "mys"],
+  "Other intl": ["bra", "mex", "zaf", "col", "cri", "arg", "chl", "aus", "nzl", "egy", "tur"],
+};
+function bucketize(loc) {
+  if (!loc) return ["Unknown"];
+  const text = (loc + " ").toLowerCase();
+  const out = LOC_RULES.filter(([, subs]) => subs.some((s) => text.includes(s)))
+    .map(([name]) => name);
+  const tokens = new Set(text.split(/[^a-z]+/));
+  for (const [bucket, codes] of Object.entries(CODE_RULES))
+    if (codes.some((c) => tokens.has(c)) && !out.includes(bucket)) out.push(bucket);
+  return out.length ? out : ["Unknown"];
+}
+
+// facet state: sets of TURNED-OFF options, persisted per browser.
+// First visit starts with far-away regions unticked; every click sticks.
+const LOC_DEFAULT_OFF = ["Seattle / WA", "Texas", "Other US", "Europe", "Asia", "Other intl"];
+const OFF = {
+  loc: new Set(JSON.parse(localStorage.getItem("locOff") ?? JSON.stringify(LOC_DEFAULT_OFF))),
+  comp: new Set(JSON.parse(localStorage.getItem("compOff") ||
+                localStorage.getItem("mutedCompanies") || "[]")),
+};
+function saveFacets() {
+  localStorage.setItem("locOff", JSON.stringify([...OFF.loc]));
+  localStorage.setItem("compOff", JSON.stringify([...OFF.comp]));
+}
+function toggleFacet(kind, value, on) {
+  if (on) OFF[kind].delete(value); else OFF[kind].add(value);
+  saveFacets();
+  renderPostings();
+  renderFacets();
+}
+function facetAll(kind) { OFF[kind].clear(); saveFacets(); renderPostings(); renderFacets(); }
+function facetNone(kind) {
+  facetOptions(kind).forEach(([v]) => OFF[kind].add(v));
+  saveFacets(); renderPostings(); renderFacets();
+}
+function muteCompany(name) { toggleFacet("comp", name, false); }
+function expandCompany(name) { expanded.add(name); renderPostings(); }
+
+function baseRows() {  // rows passing everything EXCEPT the facet filters
+  const q = $("#p-search").value.toLowerCase();
+  const st = $("#p-status").value;
+  const showClosed = $("#p-closed").checked;
+  return POSTINGS.filter((p) => {
+    if (!showClosed && p.closed) return false;
+    if (pTag !== "all" && p.tag !== pTag) return false;
+    if (st && p.user_status !== st) return false;
+    if (q && !(p.title + " " + p.company + " " + (p.location || "")).toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function facetOptions(kind) {  // [[value, count], ...] for the current base rows
+  const counts = {};
+  for (const p of baseRows()) {
+    if (kind === "loc") p.buckets.forEach((b) => { counts[b] = (counts[b] || 0) + 1; });
+    else counts[p.company] = (counts[p.company] || 0) + 1;
+  }
+  // keep turned-off options visible even at count 0 so they can be re-enabled
+  OFF[kind].forEach((v) => { if (!(v in counts)) counts[v] = 0; });
+  const order = LOC_RULES.map(([n]) => n).concat(["Unknown"]);
+  return Object.entries(counts).sort((a, b) =>
+    kind === "loc" ? order.indexOf(a[0]) - order.indexOf(b[0])
+                   : b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+function renderFacets() {
+  for (const kind of ["loc", "comp"]) {
+    $("#f-" + kind).innerHTML = facetOptions(kind).map(([v, n]) => `
+      <label><input type="checkbox" ${OFF[kind].has(v) ? "" : "checked"}
+        onchange="toggleFacet('${kind}', ${esc(JSON.stringify(v))}, this.checked)">
+        <span>${esc(v)}</span><span class="cnt">${n}</span></label>`).join("");
+  }
+}
 
 $("#p-tagseg").addEventListener("click", (e) => {
   if (!e.target.dataset.tag) return;
   pTag = e.target.dataset.tag;
   [...$("#p-tagseg").children].forEach((b) => b.classList.toggle("active", b === e.target));
   renderPostings();
+  renderFacets();
 });
-$("#p-locseg").addEventListener("click", (e) => {
-  if (!e.target.dataset.loc) return;
-  pLoc = e.target.dataset.loc;
-  [...$("#p-locseg").children].forEach((b) => b.classList.toggle("active", b === e.target));
-  renderPostings();
-});
-["p-search", "p-status", "p-company", "p-closed"].forEach((id) =>
-  $("#" + id).addEventListener("input", renderPostings));
-
-function saveMuted() {
-  localStorage.setItem("mutedCompanies", JSON.stringify([...MUTED]));
-  renderPostings();
-}
-function muteCompany(name) { MUTED.add(name); saveMuted(); }
-function unmuteAll() { MUTED.clear(); saveMuted(); }
-
-function expandCompany(name) { expanded.add(name); renderPostings(); }
+["p-search", "p-status", "p-closed"].forEach((id) =>
+  $("#" + id).addEventListener("input", () => { renderPostings(); renderFacets(); }));
 
 function renderPostings() {
-  const q = $("#p-search").value.toLowerCase();
-  const st = $("#p-status").value;
-  const comp = $("#p-company").value;
-  const showClosed = $("#p-closed").checked;
-  const rows = POSTINGS.filter((p) => {
-    if (!showClosed && p.closed) return false;
-    if (pTag !== "all" && p.tag !== pTag) return false;
-    if (pLoc === "pref" && !p.loc_ok) return false;
-    if (MUTED.has(p.company)) return false;
-    if (st && p.user_status !== st) return false;
-    if (comp && String(p.company_id) !== comp) return false;
-    if (q && !(p.title + " " + p.company + " " + (p.location || "")).toLowerCase().includes(q)) return false;
-    return true;
-  });
+  const q = $("#p-search").value;
+  const rows = baseRows().filter((p) =>
+    p.buckets.some((b) => !OFF.loc.has(b)) && !OFF.comp.has(p.company));
 
-  // collapse companies that flood the feed (unless searching/filtering to one company)
+  // collapse companies that flood the feed (unless searching)
   const counts = {};
   rows.forEach((p) => { counts[p.company] = (counts[p.company] || 0) + 1; });
-  const collapse = !q && !comp;
+  const collapse = !q;
   const shown = {}, expanderDone = {};
   const html = [];
   for (const p of rows) {
@@ -215,7 +328,7 @@ function renderPostings() {
           <span class="count">+${counts[p.company] - COLLAPSE_SHOW} more from ${esc(p.company)}</span>
           <a href="javascript:void 0" onclick="expandCompany(${esc(JSON.stringify(p.company))})">show all</a>
           &nbsp;·&nbsp;
-          <a href="javascript:void 0" onclick="muteCompany(${esc(JSON.stringify(p.company))})">mute company</a>
+          <a href="javascript:void 0" onclick="muteCompany(${esc(JSON.stringify(p.company))})">hide company</a>
         </div>`);
       }
       continue;
@@ -223,18 +336,8 @@ function renderPostings() {
     html.push(postingRow(p));
   }
 
-  const mutedChip = $("#p-muted");
-  if (MUTED.size) {
-    mutedChip.style.display = "";
-    mutedChip.textContent = `muted: ${[...MUTED].join(", ")} ✕`;
-    mutedChip.onclick = unmuteAll;
-    mutedChip.title = "click to unmute all";
-  } else {
-    mutedChip.style.display = "none";
-  }
-
   $("#p-list").innerHTML = html.length ? html.join("") :
-    "<p class='empty'>No postings match — try the Anywhere location toggle, the All tag, or unmuting companies.</p>";
+    "<p class='empty'>No postings match — check the sidebar filters (some locations or companies may be unticked) or the All tag.</p>";
 }
 
 function postingRow(p) {
@@ -253,9 +356,9 @@ function postingRow(p) {
     </div>
     <div class="sub">
       <span class="company-link" onclick="gotoCompany(${p.company_id})">${esc(p.company)}</span>
-      <span class="mute-btn" title="hide this company from the feed"
-            onclick="muteCompany(${esc(JSON.stringify(p.company))})">mute</span>
-      ${p.location ? `<span>${esc(p.location)}${p.loc_ok ? "" : " <span class='farloc'>far</span>"}</span>` : ""}
+      <span class="mute-btn" title="hide this company (sidebar re-enables it)"
+            onclick="muteCompany(${esc(JSON.stringify(p.company))})">hide</span>
+      ${p.location ? `<span>${esc(p.location)}</span>` : ""}
       ${p.department ? `<span>${esc(p.department)}</span>` : ""}
       <span>first seen ${esc((p.first_seen || "").slice(0, 10))}</span>
     </div>
@@ -350,14 +453,14 @@ async function boot() {
     fetch("/api/runs/latest").then((r) => r.json()),
   ]);
   POSTINGS = p; COMPANIES = c;
-  $("#p-company").innerHTML = '<option value="">All companies</option>' +
-    c.filter((x) => x.open_count).map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join("");
+  POSTINGS.forEach((x) => { x.buckets = bucketize(x.location); });
   if (run && run.started) {
     $("#runinfo").textContent =
       `last check ${run.started.slice(0, 10)} · ${run.companies_checked} companies · ` +
       `${run.new_postings} new · ${run.companies_failed} failed`;
   }
   renderPostings();
+  renderFacets();
   renderCompanies();
 }
 boot();

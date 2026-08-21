@@ -21,11 +21,13 @@ UA = adapters.UA
 
 
 def slug_candidates(name: str) -> list[str]:
+    # NOTE: no single-first-word guesses — "Applied Electrodynamics" once matched
+    # the unrelated Ashby board "applied" (Applied Intuition). Full-name slugs only;
+    # anything fancier goes through the manual/agent `set` path.
     base = re.sub(r"[^a-z0-9 ]", "", name.lower())
     joined = base.replace(" ", "")
     hyphen = base.replace(" ", "-")
-    first = base.split()[0] if base.split() else joined
-    return list(dict.fromkeys([joined, hyphen, first]))
+    return list(dict.fromkeys([joined, hyphen]))
 
 
 def api_url(ats: str, slug: str) -> str:
