@@ -250,7 +250,10 @@
   .pwrap main { flex: 1; padding: 0; min-width: 0; }
   #sidebar { flex: 0 0 var(--sidebar-w); width: var(--sidebar-w); position: sticky;
              top: calc(var(--topbar-h, 92px) + var(--controls-h, 0px) + 12px);
-             transition: flex-basis .2s ease, width .2s ease, opacity .15s; overflow: hidden; }
+             /* pinned, so it must scroll on its own when taller than the viewport */
+             max-height: calc(100vh - var(--topbar-h, 92px) - var(--controls-h, 0px) - 24px);
+             overflow-y: auto; overflow-x: hidden; scrollbar-width: thin;
+             transition: flex-basis .2s ease, width .2s ease, opacity .15s; }
   body.sb-collapsed #sidebar { flex-basis: 0; width: 0; opacity: 0; pointer-events: none; }
   .facet { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
            padding: 12px 14px; margin-bottom: 12px; box-shadow: var(--shadow-sm); width: var(--sidebar-w); }
