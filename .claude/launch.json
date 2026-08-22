@@ -3,13 +3,13 @@
   "configurations": [
     {
       "name": "board",
-      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeExecutable": "bash",
       "runtimeArgs": [
-        "board.app:app",
-        "--port",
-        "8787"
+        "-c",
+        ".venv/bin/uvicorn board.app:app --port \"${PORT:-8787}\""
       ],
-      "port": 8787
+      "port": 8787,
+      "autoPort": true
     },
     {
       "name": "board-local",
