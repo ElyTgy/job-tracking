@@ -79,9 +79,6 @@
   /* posting card grid (JobCard layout) */
   #p-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; padding: 0; }
   #p-list .row { margin: 0; padding: 0; display: flex; flex-direction: column; }
-  #p-list .row.expander { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 8px;
-                          padding: 10px 16px; background: var(--muted); border-style: dashed; box-shadow: none; }
-  #p-list .row.expander a { font-weight: 500; }
 
   /* triage motion: clicked card shrinks away, survivors slide to their new slot, newcomers fade in */
   #p-list .row.leaving { animation: card-leave .22s ease-in forwards; pointer-events: none; }
@@ -511,7 +508,6 @@ $("#tab-analysis").onclick = () => { showTab("analysis"); loadAnalysis(); };
 
 // ---- postings ----
 let pStatus = "";   // active status tab: "" = all live postings
-const COLLAPSE_AT = 5, COLLAPSE_SHOW = 3;
 
 // ---- match score: role weight + location weight, used by "Sort: best match" ----
 // Role: the highest-scoring category that matches wins, so "Electro-Mechanical
@@ -581,7 +577,6 @@ function scorePosting(p) {
   p.score = r + l;
   p.score_why = `${rl} ${r >= 0 ? "+" : ""}${r} · ${ll} +${l}`;
 }
-const expanded = new Set();
 
 // location buckets: a posting can belong to several (multi-location strings)
 const LOC_RULES = [
@@ -683,7 +678,6 @@ function facetNone(kind) {
   facetOptions(kind).forEach(([v]) => OFF[kind].add(v));
   saveFacets(); renderPostings(); renderFacets();
 }
-function expandCompany(name) { expanded.add(name); renderPostings(); }
 // company-level hide/unhide -- lives on the Companies tab (companyRow()), not on
 // individual posting cards, since it drops every posting from that company out
 // of the Postings feed. Client-side only (OFF.comp, persisted to localStorage);
@@ -791,33 +785,9 @@ function sortRows(rows) {
 
 function renderPostings() {
   renderStatusCounts();
-  const q = $("#p-search").value;
   const rows = sortRows(baseRows().filter((p) =>
     p.buckets.some((b) => !OFF.loc.has(b)) && !OFF.comp.has(p.company)));
-
-  // collapse companies that flood the feed (unless searching)
-  const counts = {};
-  rows.forEach((p) => { counts[p.company] = (counts[p.company] || 0) + 1; });
-  const collapse = !q;
-  const shown = {}, expanderDone = {};
-  const html = [];
-  for (const p of rows) {
-    shown[p.company] = (shown[p.company] || 0) + 1;
-    const flooding = collapse && counts[p.company] > COLLAPSE_AT && !expanded.has(p.company);
-    if (flooding && shown[p.company] > COLLAPSE_SHOW) {
-      if (!expanderDone[p.company]) {
-        expanderDone[p.company] = true;
-        html.push(`<div class="row expander">
-          <span class="count">+${counts[p.company] - COLLAPSE_SHOW} more from ${esc(p.company)}</span>
-          <a href="javascript:void 0" onclick="expandCompany(${esc(JSON.stringify(p.company))})">show all</a>
-        </div>`);
-      }
-      continue;
-    }
-    html.push(postingRow(p));
-  }
-
-  $("#p-list").innerHTML = html.length ? html.join("") :
+  $("#p-list").innerHTML = rows.length ? rows.map(postingRow).join("") :
     "<p class='empty'>No postings match — check the sidebar filters (some locations or companies may be unticked) or another status tab.</p>";
 }
 
