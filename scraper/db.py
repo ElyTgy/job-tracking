@@ -12,6 +12,7 @@ r["col"], r[0], dict(r) and tuple(r).
 """
 import os
 import sqlite3
+import threading
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -182,19 +183,47 @@ class _Cursor:
 
 
 class _Conn:
-    """Wraps a libsql connection to return wrapped cursors."""
+    """Wraps a connection (sqlite3 or libsql) to return wrapped cursors and
+    serialize access.
 
-    def __init__(self, conn):
+    A single connection is shared for the whole process (see connect() below),
+    reused across FastAPI's request threads rather than opened fresh per
+    request -- so every call here takes a lock instead of assuming exclusive
+    access. SQLite-family connections aren't safe for concurrent use from
+    multiple threads at once, and this is a single-user personal board where
+    queries are cheap, so serializing is the simple, correct trade-off.
+
+    On error the connection drops itself from the connect() cache, so one
+    that's gone stale (idle timeout, dropped network) self-heals on the next
+    connect() instead of poisoning every request after it.
+    """
+
+    def __init__(self, conn, lock):
         self._conn = conn
+        self._lock = lock
 
     def __getattr__(self, name):
         return getattr(self._conn, name)
 
     def execute(self, sql, params=()):
-        return _Cursor(self._conn.execute(sql, tuple(params)))
+        with self._lock:
+            try:
+                return _Cursor(self._conn.execute(sql, tuple(params)))
+            except Exception:
+                _invalidate_cache()
+                raise
 
     def executemany(self, sql, seq):
-        return _Cursor(self._conn.executemany(sql, [tuple(p) for p in seq]))
+        with self._lock:
+            try:
+                return _Cursor(self._conn.executemany(sql, [tuple(p) for p in seq]))
+            except Exception:
+                _invalidate_cache()
+                raise
+
+    def commit(self):
+        with self._lock:
+            return self._conn.commit()
 
 
 # ------------------------------------------------------------------------ connect
@@ -214,22 +243,49 @@ def _apply_schema(conn) -> None:
 
 _SCHEMA_APPLIED: dict = {}
 
+# One connection for the whole process, reused across every call instead of
+# reopened per request. FastAPI's sync route handlers run on a threadpool, so
+# a per-thread cache would still pay a fresh connection cost every time a new
+# worker thread picks up a request (threads come and go -- they aren't a
+# fixed pool). A single shared connection guarded by a re-entrant lock avoids
+# that: the TLS handshake to Turso happens once per process, and callers just
+# take turns. Keyed by (url, token) so a changed backend never hands back a
+# connection to the wrong database.
+_LOCK = threading.RLock()
+_STATE = {"conn": None, "key": None}
+
+
+def _invalidate_cache() -> None:
+    _STATE["conn"] = None
+    _STATE["key"] = None
+
 
 def connect():
     load_env()
     url = os.environ.get("TURSO_DATABASE_URL")
     token = os.environ.get("TURSO_AUTH_TOKEN")
-    if url and token:
-        import libsql  # hosted backend; only needed when configured
-        conn = _Conn(libsql.connect(url, auth_token=token))
-    else:
-        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-        # timeout: wait for a concurrent writer (scraper/audit runs) instead of
-        # failing the request with "database is locked".
-        conn = sqlite3.connect(DB_PATH, timeout=30)
-        conn.row_factory = sqlite3.Row
-    # Schema/migrations need a write lock; do it once per process, not per request.
-    if not _SCHEMA_APPLIED.get(str(DB_PATH)):
-        _apply_schema(conn)
-        _SCHEMA_APPLIED[str(DB_PATH)] = True
-    return conn
+    key = (url, token)
+    with _LOCK:
+        if _STATE["key"] == key and _STATE["conn"] is not None:
+            return _STATE["conn"]
+
+        if url and token:
+            import libsql  # hosted backend; only needed when configured
+            conn = _Conn(libsql.connect(url, auth_token=token), _LOCK)
+        else:
+            DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+            # timeout: wait for a concurrent writer (scraper/audit runs) instead of
+            # failing the request with "database is locked". check_same_thread=False
+            # because this one connection is now shared across request threads --
+            # safe since _Conn serializes all access through _LOCK.
+            raw = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
+            raw.row_factory = sqlite3.Row
+            conn = _Conn(raw, _LOCK)
+        # Schema/migrations need a write lock; do it once per process, not per request.
+        if not _SCHEMA_APPLIED.get(str(DB_PATH)):
+            _apply_schema(conn)
+            _SCHEMA_APPLIED[str(DB_PATH)] = True
+
+        _STATE["conn"] = conn
+        _STATE["key"] = key
+        return conn

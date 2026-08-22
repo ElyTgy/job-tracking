@@ -8,7 +8,9 @@ Usage:
 is what turns "daily" into "every other day" while catching up after sleep).
 """
 import argparse
+import socket
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 
 from . import adapters, aggregators, audit, classify, db, export_control
@@ -16,6 +18,26 @@ from . import adapters, aggregators, audit, classify, db, export_control
 
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def wait_for_network(max_wait: float = 300.0, hosts=("boards-api.greenhouse.io", "api.lever.co")) -> bool:
+    """Block until DNS resolves (launchd fires this right after wake, often
+    before Wi-Fi is back). Retries with backoff for up to max_wait seconds;
+    returns False if the network never came up."""
+    deadline = time.monotonic() + max_wait
+    delay = 5.0
+    while True:
+        for h in hosts:
+            try:
+                socket.getaddrinfo(h, 443)
+                return True
+            except socket.gaierror:
+                pass
+        if time.monotonic() >= deadline:
+            return False
+        print(f"Network not up yet; retrying in {delay:.0f}s...", flush=True)
+        time.sleep(min(delay, deadline - time.monotonic()))
+        delay = min(delay * 2, 60.0)
 
 
 def recently_ran(conn, hours: float = 40.0) -> bool:
@@ -138,6 +160,10 @@ def main():
     ap.add_argument("--company", help="check just this one company (by name substring)")
     ap.add_argument("--force", action="store_true", help="ignore the 40h spacing guard")
     args = ap.parse_args()
+
+    if not wait_for_network():
+        print("No network after 5 minutes; giving up (will retry on next launchd fire).", file=sys.stderr)
+        return 1
 
     conn = db.connect()
     if not args.force and not args.company and recently_ran(conn):

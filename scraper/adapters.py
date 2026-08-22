@@ -11,10 +11,16 @@ Public JSON endpoints (no auth):
   smartrecruiters  https://api.smartrecruiters.com/v1/companies/{slug}/postings
   recruitee        https://{slug}.recruitee.com/api/offers/
   workday          POST {origin}/wday/cxs/{tenant}/{site}/jobs
+
+fetch_apple and fetch_tesla drive a real (playwright) browser instead of an API —
+both companies run bespoke in-house careers sites with no public feed. playwright
+is only a local/scraper dependency (requirements.txt, not pyproject.toml), so the
+import is deferred inside those two functions to keep this module importable on
+the Vercel board deploy, which doesn't have it installed.
 """
 import html as html_lib
 import re
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
 import httpx
 
@@ -212,14 +218,13 @@ def fetch_workday(feed_url: str):
     return out
 
 
-def fetch_html(feed_url: str):
-    """Generic fallback: scan anchor tags on the careers page for intern-ish links.
+def _scan_intern_text(page: str, base_url: str):
+    """Generic fallback: scan anchor tags in already-fetched HTML for intern-ish links.
 
     Coarser than the API adapters (no location/department), but a stable-enough
     net for companies with custom careers pages. posting_key is the absolute URL.
+    Shared by fetch_html (static page) and fetch_tesla (browser-rendered page).
     """
-    r = _request("GET", feed_url)
-    page = r.text
     seen, out = set(), []
     for m in re.finditer(r'<a\b[^>]*href="([^"#]+)"[^>]*>(.*?)</a>', page, re.S | re.I):
         href, inner = m.groups()
@@ -229,7 +234,7 @@ def fetch_html(feed_url: str):
             continue
         if not re.search(r"\bintern(ship)?\b|\bco-?op\b", text, re.I):
             continue
-        url = urljoin(str(r.url), href)
+        url = urljoin(base_url, href)
         if urlparse(url).scheme not in ("http", "https") or url in seen:
             continue
         seen.add(url)
@@ -273,7 +278,7 @@ def fetch_html(feed_url: str):
                 continue
             text = stripped
             seen_titles.add(text.lower())
-        key = f"{r.url}#{re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')}"
+        key = f"{base_url}#{re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')}"
         if key in seen:
             continue
         seen.add(key)
@@ -281,13 +286,122 @@ def fetch_html(feed_url: str):
             {
                 "posting_key": key,
                 "title": text,
-                "url": str(r.url),
+                "url": base_url,
                 "location": "",
                 "department": "",
                 "posted_date": "",
             }
         )
     return out
+
+
+def fetch_html(feed_url: str):
+    r = _request("GET", feed_url)
+    return _scan_intern_text(r.text, str(r.url))
+
+
+def fetch_apple(feed_url: str):
+    """jobs.apple.com search results are rendered client-side — the search API
+    401s without a browser session (cookie + CSRF), so this drives a real
+    headless browser instead of calling it directly.
+
+    feed_url is the filtered search URL (e.g. .../search?location=...&team=...);
+    results are paged via &page=N, 20 per page. We keep requesting the next page
+    until one comes back with no job cards (Apple just renders a "no results"
+    state past the last page rather than erroring), with a hard cap as a backstop.
+    """
+    from playwright.sync_api import sync_playwright
+
+    parsed = urlparse(feed_url)
+    base_params = parse_qs(parsed.query)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    out, seen = [], set()
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        try:
+            page = browser.new_page(user_agent=UA["User-Agent"])
+            for page_num in range(1, 21):  # 20/page; 400 postings is well beyond any real result set
+                params = {**base_params, "page": [str(page_num)]}
+                url = parsed._replace(query=urlencode(params, doseq=True)).geturl()
+                page.goto(url, wait_until="networkidle", timeout=30000)
+                page.wait_for_timeout(1200)  # search results render just after network-idle
+                blocks = page.content().split("<li data-core-accordion-item")[1:]
+                found_new = False
+                for block in blocks:
+                    m = re.search(
+                        r'href="(/[a-z-]+/details/[^"]+)"[^>]*data-discover="true">([^<]+)</a>',
+                        block,
+                    )
+                    if not m:
+                        continue
+                    href, title = m.groups()
+                    job_id = href.split("/details/")[1].split("/")[0]
+                    if job_id in seen:
+                        continue
+                    seen.add(job_id)
+                    found_new = True
+                    date_m = re.search(r'class="job-posted-date"[^>]*>([^<]*)</span>', block)
+                    # single-location postings use id="...store-name-container-N",
+                    # "Various Locations..." ones use id="...store-name-N" instead.
+                    loc_m = re.search(r'id="search-store-name(?:-container)?-\d+"[^>]*>([^<]*)</span>', block)
+                    team_m = re.search(r'class="team-name[^"]*">([^<]*)</span>', block)
+                    out.append(
+                        {
+                            "posting_key": job_id,
+                            "title": html_lib.unescape(title).strip(),
+                            "url": urljoin(origin, href),
+                            "location": html_lib.unescape(loc_m.group(1)).strip() if loc_m else "",
+                            "department": html_lib.unescape(team_m.group(1)).strip() if team_m else "",
+                            "posted_date": date_m.group(1).strip() if date_m else "",
+                        }
+                    )
+                if not found_new:
+                    break
+        finally:
+            browser.close()
+    return out
+
+
+def fetch_tesla(feed_url: str):
+    """tesla.com/careers/search infinite-scrolls in more results via JS and has
+    no &page= param, so this drives a real browser and scrolls until the page
+    stops growing, then hands the fully-loaded HTML to the same generic
+    intern-link scanner fetch_html uses (Tesla's own DOM structure isn't
+    something we can verify from this scraper's network — see note below).
+
+    tesla.com sits behind Akamai bot management, which has blocked even a real,
+    non-automated Chrome from this environment in testing (immediate 403/"Access
+    Denied", before any JS challenge). If that happens here too, this raises
+    instead of silently reporting zero postings, so a block shows up as a failed
+    check (last_check_status) rather than looking like "no internships open".
+    """
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        try:
+            page = browser.new_page(
+                user_agent=UA["User-Agent"], viewport={"width": 1280, "height": 1600}
+            )
+            resp = page.goto(feed_url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(1500)
+            html = page.content()
+            if resp is not None and resp.status >= 400:
+                raise RuntimeError(f"blocked: HTTP {resp.status} fetching {feed_url} (Akamai bot protection likely)")
+            if len(html) < 2000 and "access denied" in html.lower():
+                raise RuntimeError(f"blocked: Akamai 'Access Denied' page for {feed_url}")
+            prev_count = -1
+            for _ in range(40):  # backstop; a real list runs dry well before this
+                count = len(re.findall(r'href="', page.content()))
+                if count == prev_count:
+                    break
+                prev_count = count
+                page.mouse.wheel(0, 4000)
+                page.wait_for_timeout(900)  # let lazy-loaded results render before the next scroll
+            html = page.content()
+        finally:
+            browser.close()
+    return _scan_intern_text(html, feed_url)
 
 
 def fetch_jibe(feed_url: str):
@@ -622,4 +736,6 @@ FETCHERS = {
     "recruitee": fetch_recruitee,
     "workday": fetch_workday,
     "html": fetch_html,
+    "apple": fetch_apple,
+    "tesla": fetch_tesla,
 }

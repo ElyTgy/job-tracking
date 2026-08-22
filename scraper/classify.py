@@ -46,13 +46,14 @@ def _word_hits(text: str, words: list[str]) -> list[str]:
 
 def is_internship(title: str, cfg: dict) -> bool:
     text = title.lower()
-    # word-boundary check so "internal tools" or "international" don't match "intern"
+    # word-boundary check so "internal tools" or "international" don't match "intern";
+    # trailing s? so plural titles ("Software Internships") still match singular markers.
     for marker in cfg["internship_markers"]:
         m = marker.lower()
         if " " in m or "-" in m:
             if m in text:
                 return True
-        elif re.search(rf"\b{re.escape(m)}\b", text):
+        elif re.search(rf"\b{re.escape(m)}s?\b", text):
             return True
     return False
 
