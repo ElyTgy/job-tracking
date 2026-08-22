@@ -41,6 +41,11 @@
   nav button.active { color: var(--foreground); border-bottom-color: var(--primary); }
 
   .controls { display: flex; flex-wrap: wrap; gap: 10px; padding: 16px 24px 8px; align-items: center; }
+  /* postings toolbar (search / sort / status tabs) stays pinned under the topbar while
+     scrolling; --topbar-h and --controls-h are measured in JS so the sidebar can sit below it */
+  #view-postings .controls { position: sticky; top: var(--topbar-h, 92px); z-index: 15; padding-bottom: 10px;
+                             background: rgba(247,247,248,.92); backdrop-filter: blur(8px);
+                             border-bottom: 1px solid var(--border); }
   input[type=search], select, .notes {
     background: var(--card); color: var(--foreground); border: 1px solid var(--border);
     border-radius: var(--radius-sm); padding: 8px 12px; font: inherit; box-shadow: var(--shadow-sm); outline: none; }
@@ -95,8 +100,57 @@
   .card-foot .apply { margin-left: auto; background: var(--primary); color: var(--primary-fg); text-decoration: none;
                       border-radius: var(--radius-sm); padding: 7px 14px; font-weight: 500; font-size: 13px; }
   .card-foot .apply:hover { background: #27272a; }
-  .status-sel { padding: 6px 9px; font-size: 12.5px; box-shadow: none; }
+  .status-sel { padding: 6px 9px; font-size: 12.5px; box-shadow: none; font-weight: 500; }
   .row:has(.badge.new) { border-color: var(--new-line); }
+
+  /* status colours -- one palette shared by the status tabs and the per-card dropdown */
+  :root {
+    --st-new: #3f3f46;         --st-new-soft: #f4f4f5;
+    --st-apply-later: #2563eb; --st-apply-later-soft: #dbeafe;
+    --st-backlog: #0d9488;     --st-backlog-soft: #ccfbf1;
+    --st-irrelevant: #71717a;  --st-irrelevant-soft: #e4e4e7;
+    --st-applied: #7c3aed;     --st-applied-soft: #ede9fe;
+    --st-interviewing: #db2777; --st-interviewing-soft: #fce7f3;
+    --st-rejected: #dc2626;    --st-rejected-soft: #fee2e2;
+    --st-offer: #16a34a;       --st-offer-soft: #dcfce7;
+    --st-missed: #b45309;      --st-missed-soft: #fef3c7;
+  }
+  .seg button .tabcount { font: 600 10px var(--mono); margin-left: 5px; opacity: .7; }
+  .seg button .tabcount:empty { display: none; }
+  .seg button.st-apply-later.active { color: var(--st-apply-later); }
+  .seg button.st-backlog.active     { color: var(--st-backlog); }
+  .seg button.st-irrelevant.active  { color: var(--st-irrelevant); }
+  .seg button.st-applied.active     { color: var(--st-applied); }
+  .seg button.st-interviewing.active { color: var(--st-interviewing); }
+  .seg button.st-rejected.active    { color: var(--st-rejected); }
+  .seg button.st-offer.active       { color: var(--st-offer); }
+  .seg button.st-missed.active      { color: var(--st-missed); }
+  .status-sel.st-new         { color: var(--st-new);         background: var(--st-new-soft);         border-color: transparent; }
+  .status-sel.st-apply-later { color: var(--st-apply-later); background: var(--st-apply-later-soft); border-color: transparent; }
+  .status-sel.st-backlog     { color: var(--st-backlog);     background: var(--st-backlog-soft);     border-color: transparent; }
+  .status-sel.st-irrelevant  { color: var(--st-irrelevant);  background: var(--st-irrelevant-soft);  border-color: transparent; }
+  .status-sel.st-applied     { color: var(--st-applied);     background: var(--st-applied-soft);     border-color: transparent; }
+  .status-sel.st-interviewing { color: var(--st-interviewing); background: var(--st-interviewing-soft); border-color: transparent; }
+  .status-sel.st-rejected    { color: var(--st-rejected);    background: var(--st-rejected-soft);    border-color: transparent; }
+  .status-sel.st-offer       { color: var(--st-offer);       background: var(--st-offer-soft);       border-color: transparent; }
+  .badge.missed { background: var(--st-missed-soft); color: var(--st-missed); border: 1px solid #fde68a; }
+  /* one-click triage on untouched cards in the All tab */
+  .triage { display: inline-flex; gap: 6px; }
+  .triage button { font: 500 12.5px var(--font); padding: 6px 11px; border-radius: var(--radius-sm); cursor: pointer;
+                   border: 1px solid var(--border); background: var(--card); color: var(--muted-fg); }
+  .triage button.st-apply-later:hover { color: var(--st-apply-later); background: var(--st-apply-later-soft); border-color: transparent; }
+  .triage button.st-backlog:hover     { color: var(--st-backlog);     background: var(--st-backlog-soft);     border-color: transparent; }
+  .triage button.st-irrelevant:hover  { color: var(--st-irrelevant);  background: var(--st-irrelevant-soft);  border-color: transparent; }
+  /* backlog / irrelevant in the All tab: still listed, but greyed and sunk to the bottom */
+  .row.dim { opacity: .55; filter: saturate(.4); }
+  .row.dim:hover { opacity: .9; filter: none; }
+  .row.dim .apply { background: var(--muted); color: var(--muted-fg); }
+  .groupbreak { grid-column: 1 / -1; font: 600 11px var(--font); text-transform: uppercase; letter-spacing: .08em;
+                color: var(--muted-fg); padding: 14px 4px 2px; border-top: 1px dashed var(--border); margin-top: 8px; }
+  .score { font: 600 11px var(--mono); color: var(--muted-fg); border: 1px solid var(--border);
+           border-radius: 6px; padding: 3px 6px; cursor: help; }
+  .score.hi { color: var(--new); border-color: var(--new-line); background: var(--new-soft); }
+  .score.lo { color: var(--exc); border-color: #fecaca; background: var(--exc-soft); }
 
   .badge { font: 600 10.5px/1 var(--font); letter-spacing: .06em; text-transform: uppercase; padding: 4px 7px; border-radius: 6px; }
   .badge.new { background: var(--new-soft); color: var(--new); border: 1px solid var(--new-line); }
@@ -107,6 +161,8 @@
   .badge.exp { background: #fef3c7; color: #92600e; border: 1px solid #fde68a; cursor: help; }
   .badge.nospon { background: #ede9fe; color: #5b3fbf; border: 1px solid #ddd4fd; cursor: help; }
   .badge.clr { background: #e0f2fe; color: #075985; border: 1px solid #bae6fd; cursor: help; }
+  .badge.dead { background: var(--muted); color: var(--muted-fg); border: 1px solid var(--border); }
+  .badge.hidden { background: var(--warn-soft); color: var(--warn); border: 1px solid #fde68a; }
   #facet-elig label { cursor: pointer; }
   .facet-note { margin: 8px 2px 0; font: 11.5px/1.45 var(--font); color: var(--muted-fg); }
 
@@ -188,7 +244,8 @@
   /* ---- toggleable sidebar ---- */
   .pwrap { display: flex; gap: 20px; padding: 0 24px 80px; align-items: flex-start; }
   .pwrap main { flex: 1; padding: 0; min-width: 0; }
-  #sidebar { flex: 0 0 var(--sidebar-w); width: var(--sidebar-w); position: sticky; top: 92px;
+  #sidebar { flex: 0 0 var(--sidebar-w); width: var(--sidebar-w); position: sticky;
+             top: calc(var(--topbar-h, 92px) + var(--controls-h, 0px) + 12px);
              transition: flex-basis .2s ease, width .2s ease, opacity .15s; overflow: hidden; }
   body.sb-collapsed #sidebar { flex-basis: 0; width: 0; opacity: 0; pointer-events: none; }
   .facet { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
@@ -236,8 +293,9 @@
     .controls input[type=search] { min-width: 0; flex: 1 1 100%; order: -1; }
     .controls .seg { flex: 1 1 100%; }
     .controls .seg button { flex: 1; padding: 7px 4px; }
-    .controls #p-status, .controls #p-closed { flex: 1 1 0; min-width: 0; padding: 8px 10px; font-size: 13px; }
-    .controls #p-closed { flex-basis: 55%; }
+    .controls #p-sort { flex: 1 1 0; min-width: 0; padding: 8px 10px; font-size: 13px; }
+    .controls #p-statusseg { flex-wrap: wrap; }
+    .controls #p-statusseg button { flex: 1 1 22%; }
     .controls #sb-toggle { padding: 8px 11px; }
     .pwrap { padding: 0 12px 80px; }
     #p-list { grid-template-columns: 1fr; gap: 10px; }
@@ -284,23 +342,25 @@
     <button class="iconbtn" id="sb-toggle" onclick="toggleSidebar()" title="Show / hide filters">
       <span class="ico">◧</span> Filters <span class="fcount" id="fcount"></span></button>
     <input type="search" id="p-search" placeholder="Search title, company, location…">
-    <div class="seg" id="p-tagseg">
-      <button data-tag="relevant" class="active">Relevant</button>
-      <button data-tag="all">All</button>
-      <button data-tag="other">Other</button>
-      <button data-tag="excluded-interest">Filtered</button>
+    <select id="p-sort" title="Best match = role score (EE 3 · hardware 3 · robotics 2 · research/R&D 2 · SWE/AI 1 · mech/materials −1) + location score (SF 2.5 · LA/Boston/NYC 2 · Toronto 1); ties by date seen">
+      <option value="score">Sort: best match</option>
+      <option value="date">Sort: newest</option>
+    </select>
+    <!-- status tabs: every tab shows live postings only, except "missed" (taken
+         down by the company, whatever stage you were at -- the status it had is
+         kept and shown on the card). "All" shows everything live, with backlog
+         and irrelevant greyed out at the bottom. -->
+    <div class="seg" id="p-statusseg">
+      <button data-st="" class="active">All<span class="tabcount"></span></button>
+      <button data-st="apply later" class="st-apply-later" title="matches you -- apply">Apply later<span class="tabcount"></span></button>
+      <button data-st="backlog" class="st-backlog" title="maybe, down the line">Backlog<span class="tabcount"></span></button>
+      <button data-st="irrelevant" class="st-irrelevant" title="not your field">Irrelevant<span class="tabcount"></span></button>
+      <button data-st="applied" class="st-applied">Applied<span class="tabcount"></span></button>
+      <button data-st="interviewing" class="st-interviewing">Interviewing<span class="tabcount"></span></button>
+      <button data-st="rejected" class="st-rejected">Rejected<span class="tabcount"></span></button>
+      <button data-st="offer" class="st-offer">Offer<span class="tabcount"></span></button>
+      <button data-st="missed" class="st-missed" title="taken down by the company before you finished with it">Missed<span class="tabcount"></span></button>
     </div>
-    <select id="p-status">
-      <option value="">Any status</option>
-      <option>not seen</option><option>seen</option><option>applied</option>
-      <option>rejected</option><option>offer</option>
-    </select>
-    <select id="p-closed" title="Open = still live. Missed = taken down before you marked them seen/applied. Closed = everything taken down.">
-      <option value="open">Open only</option>
-      <option value="missed">Missed (taken down, never seen)</option>
-      <option value="closed">All closed</option>
-      <option value="all">Open + closed</option>
-    </select>
   </div>
   <div class="pwrap">
     <div id="sb-backdrop" onclick="closeDrawer()"></div>
@@ -348,6 +408,8 @@
       <button data-f="all" class="active">All</button>
       <button data-f="open">Has openings</button>
       <button data-f="issues">Issues</button>
+      <button data-f="dead">Dead</button>
+      <button data-f="hidden">Hidden</button>
     </div>
     <select id="c-sort">
       <option value="open">Sort: open internships</option>
@@ -441,8 +503,77 @@ $("#tab-issues").onclick = () => showTab("issues");
 $("#tab-analysis").onclick = () => { showTab("analysis"); loadAnalysis(); };
 
 // ---- postings ----
-let pTag = "relevant";
+let pStatus = "";   // active status tab: "" = all live postings
 const COLLAPSE_AT = 5, COLLAPSE_SHOW = 3;
+
+// ---- match score: role weight + location weight, used by "Sort: best match" ----
+// Role: the highest-scoring category that matches wins, so "Electro-Mechanical
+// Test Intern" scores as electrical (2), not mechanical (-1). Only if nothing
+// positive matches does a negative category apply; no match at all = 0.
+const ROLE_RULES = [  // [score, label, phrases (substring, lowercased title+department)]
+  [3,   "electrical", ["electrical", "electronics", "electronic", "power electronics", "pcb",
+                      "analog", "mixed-signal", "mixed signal", "circuit", "rf engineer",
+                      " rf ", " ee ", "ee intern", "avionics"]],
+  [2,   "research",  ["research", "r&d", "r & d", "applied scien", "research scien", "labs"]],
+  [3,   "hardware",  ["hardware", " hw ", "digital design", "asic", "fpga", "chip", "silicon",
+                      "semiconductor", " soc ", "rtl", "verification", "vlsi", "firmware",
+                      "embedded", "signal processing", "dsp", "gpu architecture", "computer architecture",
+                      "physical design", "dram", "failure analysis",
+                      "system design", "test solutions"]],
+  [2,   "robotics",  ["robot", "autonomy", "autonomous", "perception", "motion planning",
+                      "slam", "manipulation", "controls engineer", "control systems", "mechatronic"]],
+  [1,   "swe/ai",    ["software", " swe ", "machine learning", " ml ", " ai ", "deep learning",
+                      "artificial intelligence", "nlp", "computer vision", "data scien", "data engineer",
+                      "backend", "back end", "frontend", "front end", "full stack", "fullstack",
+                      "infrastructure", "platform", "devops", "security", "compiler", "cuda", "llm",
+                      "developer", "programmer"]],
+  [-1,  "other",     ["mechanical", "materials", "civil", "chemical", "nuclear", "financ", "accounting",
+                      "marketing", "sales", "product manag", "program manag", "product design",
+                      "supply chain", "operations", " ops ", "manufacturing", "industrial", "recruit",
+                      "legal", "business", "procurement", "logistics", "technician", "laboratory",
+                      "account ", "consulting", "customer", "strateg", "solution architect",
+                      "solution engineer", "cloud solution", "administrator", "growth",
+                      "member experience", "shop tech"]],
+];
+const LOC_SCORES = [  // [score, label, phrases]; multi-location strings take the best one
+  [2.5, "SF",      ["san francisco", "south san francisco", " sf,", " sf ", "sf bay", "bay area",
+                    "mountain view", "palo alto", "menlo park", "sunnyvale", "santa clara", "san jose",
+                    "redwood city", "fremont", "berkeley", "oakland", "emeryville", "cupertino",
+                    "alameda", "san mateo", "foster city", "burlingame"]],
+  [2,   "LA",      ["los angeles", "el segundo", "hawthorne", "long beach", "burbank", "redondo",
+                    "torrance", "pasadena", "santa monica", "culver city", "irvine", "gardena"]],
+  [2,   "Boston",  ["boston", "cambridge, ma", "somerville", "waltham", "massachusetts", ", ma,", ", ma "]],
+  [2,   "NYC",     ["new york", "nyc", "brooklyn", "manhattan"]],
+  [1,   "Toronto", ["toronto", "markham", "mississauga", "scarborough", "north york", "vaughan"]],
+];
+function scoreRole(p) {
+  // The title is scored on its own first; the department only breaks in when the
+  // title says nothing -- otherwise "Mechanical Design Engineer" on a team called
+  // "Tesla AI" would score as AI.
+  for (const text of [p.title, p.department]) {
+    const t = " " + (text || "").toLowerCase() + " ";
+    let best = null;
+    for (const [score, label, subs] of ROLE_RULES) {
+      if (subs.some((s) => t.includes(s))) {
+        if (score > 0) return [score, label];    // rules are ordered best-first
+        best = best || [score, label];
+      }
+    }
+    if (best) return best;
+  }
+  return [0, "unclassified"];
+}
+function scoreLoc(p) {
+  const text = " " + (p.location || "").toLowerCase() + " ";
+  for (const [score, label, subs] of LOC_SCORES)   // ordered best-first
+    if (subs.some((s) => text.includes(s))) return [score, label];
+  return [0, "other"];
+}
+function scorePosting(p) {
+  const [r, rl] = scoreRole(p), [l, ll] = scoreLoc(p);
+  p.score = r + l;
+  p.score_why = `${rl} ${r >= 0 ? "+" : ""}${r} · ${ll} +${l}`;
+}
 const expanded = new Set();
 
 // location buckets: a posting can belong to several (multi-location strings)
@@ -545,33 +676,51 @@ function facetNone(kind) {
   facetOptions(kind).forEach(([v]) => OFF[kind].add(v));
   saveFacets(); renderPostings(); renderFacets();
 }
-function muteCompany(name) { toggleFacet("comp", name, false); }
 function expandCompany(name) { expanded.add(name); renderPostings(); }
+// company-level hide/unhide -- lives on the Companies tab (companyRow()), not on
+// individual posting cards, since it drops every posting from that company out
+// of the Postings feed. Client-side only (OFF.comp, persisted to localStorage);
+// toggleFacet(..., on) with on=true means "remove from the OFF set" i.e. unhide.
+function toggleCompanyHide(name) {
+  toggleFacet("comp", name, OFF.comp.has(name));
+  renderCompanies();
+}
+
+const STATUSES = ["new", "apply later", "backlog", "irrelevant", "applied", "interviewing", "rejected", "offer"];
+// In the All tab, backlog and irrelevant are still listed but greyed out below everything else.
+const DIM_RANK = { backlog: 1, irrelevant: 2 };
+
+// Which status tab a posting belongs to. Anything the company has taken down is
+// "missed" regardless of how far along you were (its own status is kept and
+// shown on the card); everything else is live and files under its own status.
+function statusTab(p) {
+  if (p.closed) return "missed";
+  return p.user_status;
+}
+function inStatusTab(p, tab) {
+  const t = statusTab(p);
+  if (tab === "") return t !== "missed";   // All = every live posting
+  return t === tab;
+}
 
 function baseRows() {  // rows passing everything EXCEPT the facet filters
   const q = $("#p-search").value.toLowerCase();
-  const st = $("#p-status").value;
-  const cmode = $("#p-closed").value;
   return POSTINGS.filter((p) => {
-    if (cmode === "open" && p.closed) return false;
-    if (cmode === "closed" && !p.closed) return false;
-    if (cmode === "missed" && !(p.closed && p.user_status === "not seen")) return false;
-    if (pTag !== "all" && p.tag !== pTag) return false;
-    if (st && p.user_status !== st) return false;
+    if (!inStatusTab(p, pStatus)) return false;
     if (q && !(p.title + " " + p.company + " " + (p.location || "")).toLowerCase().includes(q)) return false;
     if (eligBlocked(p)) return false;
     return true;
   });
 }
 
-function facetOptions(kind) {  // [[value, count], ...] for the current base rows
+function facetOptions(kind) {  // [[value, count], ...]
+  // The option list is the same whichever status tab you're on -- every location /
+  // company that has any posting at all -- so ticking and unticking is stable as
+  // you switch tabs. Only the counts follow the current tab.
   const counts = {};
-  for (const p of baseRows()) {
-    if (kind === "loc") p.buckets.forEach((b) => { counts[b] = (counts[b] || 0) + 1; });
-    else counts[p.company] = (counts[p.company] || 0) + 1;
-  }
-  // keep turned-off options visible even at count 0 so they can be re-enabled
-  OFF[kind].forEach((v) => { if (!(v in counts)) counts[v] = 0; });
+  const keys = (p) => kind === "loc" ? p.buckets : [p.company];
+  for (const p of POSTINGS) keys(p).forEach((k) => { counts[k] = 0; });
+  for (const p of baseRows()) keys(p).forEach((k) => { counts[k]++; });
   const order = LOC_RULES.map(([n]) => n).concat(["Unknown"]);
   return Object.entries(counts).sort((a, b) =>
     kind === "loc" ? order.indexOf(a[0]) - order.indexOf(b[0])
@@ -601,20 +750,44 @@ function renderFacets() {
   }
 }
 
-$("#p-tagseg").addEventListener("click", (e) => {
-  if (!e.target.dataset.tag) return;
-  pTag = e.target.dataset.tag;
-  [...$("#p-tagseg").children].forEach((b) => b.classList.toggle("active", b === e.target));
+$("#p-statusseg").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn || btn.dataset.st === undefined) return;
+  pStatus = btn.dataset.st;
+  [...$("#p-statusseg").children].forEach((b) => b.classList.toggle("active", b === btn));
   renderPostings();
   renderFacets();
 });
-["p-search", "p-status", "p-closed"].forEach((id) =>
+["p-search", "p-sort"].forEach((id) =>
   $("#" + id).addEventListener("input", () => { renderPostings(); renderFacets(); }));
 
+function renderStatusCounts() {  // per-tab counts, ignoring search/facets so they stay stable
+  const n = { "": 0 };
+  for (const p of POSTINGS) {
+    if (eligBlocked(p)) continue;
+    const t = statusTab(p);
+    n[t] = (n[t] || 0) + 1;
+    if (t !== "missed") n[""]++;
+  }
+  for (const b of $("#p-statusseg").children) {
+    const c = b.querySelector(".tabcount");
+    c.textContent = n[b.dataset.st] ? String(n[b.dataset.st]) : "";
+  }
+}
+
+function dimRank(p) { return pStatus === "" ? (DIM_RANK[p.user_status] || 0) : 0; }
+function sortRows(rows) {
+  const byDate = (a, b) => (b.first_seen || "").localeCompare(a.first_seen || "") || a.id - b.id;
+  const inner = $("#p-sort").value === "date" ? byDate
+    : (a, b) => b.score - a.score || byDate(a, b);
+  return rows.sort((a, b) => dimRank(a) - dimRank(b) || inner(a, b));
+}
+
 function renderPostings() {
+  renderStatusCounts();
   const q = $("#p-search").value;
-  const rows = baseRows().filter((p) =>
-    p.buckets.some((b) => !OFF.loc.has(b)) && !OFF.comp.has(p.company));
+  const rows = sortRows(baseRows().filter((p) =>
+    p.buckets.some((b) => !OFF.loc.has(b)) && !OFF.comp.has(p.company)));
 
   // collapse companies that flood the feed (unless searching)
   const counts = {};
@@ -622,7 +795,13 @@ function renderPostings() {
   const collapse = !q;
   const shown = {}, expanderDone = {};
   const html = [];
+  let lastRank = 0;
   for (const p of rows) {
+    const rank = dimRank(p);
+    if (rank !== lastRank) {   // divider where the greyed-out backlog / irrelevant section starts
+      html.push(`<div class="groupbreak">${rank === 1 ? "Backlog" : "Irrelevant"}</div>`);
+      lastRank = rank;
+    }
     shown[p.company] = (shown[p.company] || 0) + 1;
     const flooding = collapse && counts[p.company] > COLLAPSE_AT && !expanded.has(p.company);
     if (flooding && shown[p.company] > COLLAPSE_SHOW) {
@@ -631,8 +810,6 @@ function renderPostings() {
         html.push(`<div class="row expander">
           <span class="count">+${counts[p.company] - COLLAPSE_SHOW} more from ${esc(p.company)}</span>
           <a href="javascript:void 0" onclick="expandCompany(${esc(JSON.stringify(p.company))})">show all</a>
-          &nbsp;·&nbsp;
-          <a href="javascript:void 0" onclick="muteCompany(${esc(JSON.stringify(p.company))})">hide company</a>
         </div>`);
       }
       continue;
@@ -641,14 +818,14 @@ function renderPostings() {
   }
 
   $("#p-list").innerHTML = html.length ? html.join("") :
-    "<p class='empty'>No postings match — check the sidebar filters (some locations or companies may be unticked) or the All tag.</p>";
+    "<p class='empty'>No postings match — check the sidebar filters (some locations or companies may be unticked) or another status tab.</p>";
 }
 
 function postingRow(p) {
   const chips = (p.tag_hits || "").split(",").filter(Boolean).slice(0, 4)
     .map((h) => `<span class="chip ${esc(p.tag)}">${esc(h)}</span>`).join(" ");
   const initial = (p.company || "?").trim()[0].toUpperCase();
-  return `<div class="row">
+  return `<div class="row ${dimRank(p) ? "dim" : ""}">
     <div class="card-head">
       <span class="avatar">${esc(initial)}</span>
       <div>
@@ -657,8 +834,9 @@ function postingRow(p) {
       </div>
       <div class="right">
         ${p.is_new ? '<span class="badge new">New</span>' : ""}
-        ${p.closed ? '<span class="badge closed">Closed</span>' : ""}
+        ${p.closed ? '<span class="badge missed">Missed</span>' : ""}
         ${eligBadges(p)}
+        <span class="score ${p.score >= 3 ? "hi" : p.score < 0 ? "lo" : ""}" title="match score: ${esc(p.score_why)}">${p.score}</span>
       </div>
     </div>
     <div class="card-body">
@@ -670,12 +848,17 @@ function postingRow(p) {
       ${chips ? `<div class="chips">${chips}</div>` : ""}
     </div>
     <div class="card-foot">
-      <select class="status-sel" onchange="setStatus(${p.id}, this.value)">
-        ${["not seen","seen","applied","rejected","offer"].map(
-          (s) => `<option ${s === p.user_status ? "selected" : ""}>${s}</option>`).join("")}
-      </select>
-      <span class="mute-btn" title="hide this company (sidebar re-enables it)"
-            onclick="muteCompany(${esc(JSON.stringify(p.company))})">hide</span>
+      ${pStatus === "" && p.user_status === "new" ? `
+      <span class="triage">
+        <button class="st-apply-later" onclick="setStatus(${p.id}, 'apply later')" title="matches you -- goes to Apply later">To apply</button>
+        <button class="st-backlog" onclick="setStatus(${p.id}, 'backlog')" title="maybe, down the line -- goes to Backlog">Maybe</button>
+        <button class="st-irrelevant" onclick="setStatus(${p.id}, 'irrelevant')" title="not your field -- goes to Irrelevant">No</button>
+      </span>` : `
+      <select class="status-sel st-${p.user_status.replace(/ /g, "-")}"
+              title="${p.closed ? "status it had when the company took it down" : "apply later = matches you · backlog = maybe later · irrelevant = not your field"}"
+              onchange="setStatus(${p.id}, this.value)">
+        ${STATUSES.map((s) => `<option ${s === p.user_status ? "selected" : ""}>${s}</option>`).join("")}
+      </select>`}
       <a class="apply" href="${esc(p.url)}" target="_blank" rel="noopener">Open posting</a>
     </div>
   </div>`;
@@ -709,6 +892,17 @@ function updateFilterCount() {  // badge on the Filters button: how many facets 
 }
 if (localStorage.getItem("sbCollapsed")) document.body.classList.add("sb-collapsed");
 
+// keep the sticky offsets in sync with the real rendered heights (the run-info line
+// and the tab strip both wrap at narrow widths, so these aren't constants)
+function measureSticky() {
+  const r = document.documentElement.style;
+  r.setProperty("--topbar-h", $(".topbar").offsetHeight + "px");
+  r.setProperty("--controls-h", $("#view-postings .controls").offsetHeight + "px");
+}
+new ResizeObserver(measureSticky).observe($(".topbar"));
+new ResizeObserver(measureSticky).observe($("#view-postings .controls"));
+measureSticky();
+
 async function setStatus(id, status) {
   await fetch(`/api/postings/${id}/status`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -716,6 +910,11 @@ async function setStatus(id, status) {
   });
   const p = POSTINGS.find((x) => x.id === id);
   if (p) p.user_status = status;
+  // "hidden" changes whether this row (and the facet counts) should even be on
+  // the page -- re-render so hiding/un-hiding takes effect immediately instead
+  // of waiting for some other unrelated action to trigger a redraw.
+  renderPostings();
+  renderFacets();
 }
 
 function gotoCompany(id) {
@@ -739,11 +938,16 @@ $("#c-filterseg").addEventListener("click", (e) => {
 function renderCompanies() {
   const q = $("#c-search").value.toLowerCase();
   let rows = COMPANIES.filter((c) => {
+    if (q && !c.name.toLowerCase().includes(q)) return false;
+    // dead companies are tucked away everywhere except their own tab, same as
+    // the Issues tab does -- otherwise they'd clutter every other view forever.
+    if (cFilter === "dead") return c.discovery_status === "dead";
+    if (c.discovery_status === "dead") return false;
+    if (cFilter === "hidden") return OFF.comp.has(c.name);
     if (cFilter === "open" && !c.open_count) return false;
     if (cFilter === "issues" &&
         !(String(c.last_check_status || "").startsWith("error") ||
           c.discovery_status !== "ok" || c.audit_note)) return false;
-    if (q && !c.name.toLowerCase().includes(q)) return false;
     return true;
   });
   rows = rows.sort((a, b) => $("#c-sort").value === "open"
@@ -755,6 +959,8 @@ function renderCompanies() {
 
 function companyRow(c) {
   const err = String(c.last_check_status || "").startsWith("error");
+  const dead = c.discovery_status === "dead";
+  const hidden = OFF.comp.has(c.name);
   const checked = c.last_checked
     ? `checked ${esc(c.last_checked.slice(0, 10))}${err ? " ⚠︎ error" : ""}`
     : (c.discovery_status === "ok" ? "not checked yet" : esc(c.discovery_status));
@@ -780,7 +986,13 @@ function companyRow(c) {
       ${c.ats_type ? `<span class="ats">${esc(c.ats_type)}</span>` : ""}
       <span class="count ${posts.length ? "has" : ""}">${posts.length} open internship${posts.length === 1 ? "" : "s"}</span>
       ${c.audit_note ? '<span class="badge audit" title="site links to a job board not in this company\'s feed">unregistered board</span>' : ""}
+      ${dead ? '<span class="badge dead" title="postings closed, excluded from scraping">dead</span>' : ""}
+      ${hidden ? '<span class="badge hidden" title="postings hidden from the Postings tab (this browser only)">hidden</span>' : ""}
       <span class="checked ${err ? "err" : ""}">${checked}</span>
+      <span class="mute-btn" title="${hidden ? "show this company's postings again" : "hide this company's postings from the Postings tab"}"
+            onclick="event.stopPropagation(); toggleCompanyHide(${esc(JSON.stringify(c.name))})">${hidden ? "unhide" : "hide"}</span>
+      <span class="mute-btn" title="${dead ? "resume tracking this company" : "stop tracking this company and close its open postings"}"
+            onclick="event.stopPropagation(); setCompanyDead(${c.id}, ${dead ? "false" : "true"})">${dead ? "revive" : "mark dead"}</span>
     </div>
     <div class="comp-body">
       ${c.careers_url ? `<a href="${esc(c.careers_url)}" target="_blank" rel="noopener">careers page ↗</a>` : ""}
@@ -789,6 +1001,20 @@ function companyRow(c) {
       <h4>Open internships</h4>${postList}
     </div>
   </div>`;
+}
+
+async function setCompanyDead(id, dead) {
+  const c = COMPANIES.find((x) => x.id === id);
+  if (!c) return;
+  if (dead && !confirm(`Mark "${c.name}" dead? This closes all of its open postings -- ` +
+      `use "revive" on the Dead tab to undo.`)) return;
+  await fetch(`/api/companies/${id}`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    // reviving into a feed that's actually configured resumes scraping (discovery_status
+    // "ok"); otherwise it just goes back to needing manual setup, same as a fresh company.
+    body: JSON.stringify({ discovery_status: dead ? "dead" : (c.ats_type && c.feed_url ? "ok" : "needs_manual") }),
+  });
+  await boot();
 }
 
 // ---- people ----
@@ -1176,7 +1402,7 @@ async function boot() {
     fetch("/api/people").then((r) => r.json()),
   ]);
   POSTINGS = p; COMPANIES = c; PEOPLE = pe;
-  POSTINGS.forEach((x) => { x.buckets = bucketize(x.location); });
+  POSTINGS.forEach((x) => { x.buckets = bucketize(x.location); scorePosting(x); });
   if (run && run.started) {
     $("#runinfo").textContent =
       `last check ${run.started.slice(0, 10)} · ${run.companies_checked} companies · ` +
@@ -1188,7 +1414,10 @@ async function boot() {
   renderPeople();
   renderIssues();
 }
-loadAts().then(boot);
+// boot() doesn't need ATS (only the company-edit dialog does), so run them
+// concurrently instead of waiting on loadAts() first -- that was adding a
+// full extra request's worth of latency in front of every page load.
+Promise.all([loadAts(), boot()]);
 </script>
 </body>
 </html>

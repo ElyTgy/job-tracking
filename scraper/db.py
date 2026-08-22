@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS postings (
     last_seen TEXT NOT NULL,
     is_new INTEGER DEFAULT 1,   -- set on insert, cleared after the next run's digest
     closed INTEGER DEFAULT 0,
-    user_status TEXT DEFAULT 'not seen',  -- not seen | seen | applied | rejected | offer
+    user_status TEXT DEFAULT 'new',  -- new | apply later | backlog | irrelevant | applied | interviewing | rejected | offer
     export_status TEXT,         -- us-person-required | export-license-possible
                                 -- | export-mentioned | clear | unknown | NULL (unread)
     export_regime TEXT,         -- itar | ear | itar+ear | none
@@ -120,6 +120,10 @@ MIGRATIONS = [
     "ALTER TABLE postings ADD COLUMN visa_sponsorship TEXT",
     # the sentence that triggered the status, so the board can show its evidence
     "ALTER TABLE postings ADD COLUMN export_evidence TEXT",
+    # user_status triage rename: not seen/seen -> new, hidden -> irrelevant. Idempotent,
+    # and also catches rows an older DB's 'not seen' column default may still insert.
+    "UPDATE postings SET user_status='new' WHERE user_status IN ('not seen', 'seen')",
+    "UPDATE postings SET user_status='irrelevant' WHERE user_status='hidden'",
 ]
 
 

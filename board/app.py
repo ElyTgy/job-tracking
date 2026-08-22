@@ -51,7 +51,9 @@ async def basic_auth(request: Request, call_next):
 def health():
     return {"ok": True, "backend": "turso" if os.environ.get("TURSO_DATABASE_URL") else "sqlite"}
 
-VALID_STATUSES = {"not seen", "seen", "applied", "rejected", "offer"}
+VALID_STATUSES = {"new", "apply later", "backlog", "irrelevant", "applied", "interviewing", "rejected", "offer"}
+# pre-triage names that may still come out of an older DB default between scrape and restart
+LEGACY_STATUS = {"not seen": "new", "seen": "new", "hidden": "irrelevant"}
 
 
 @app.get("/")
@@ -70,7 +72,10 @@ def postings():
            FROM postings p JOIN companies c ON c.id = p.company_id
            ORDER BY p.is_new DESC, p.first_seen DESC, c.name COLLATE NOCASE"""
     ).fetchall()
-    return [dict(r) for r in rows]
+    out = [dict(r) for r in rows]
+    for p in out:
+        p["user_status"] = LEGACY_STATUS.get(p["user_status"], p["user_status"])
+    return out
 
 
 @app.get("/api/companies")
@@ -257,9 +262,15 @@ def _apply_company_edit(conn, cid: int, body: CompanyEdit) -> dict:
     if status:
         if status not in ("ok", "needs_manual", "dead", "pending"):
             raise HTTPException(400, "bad discovery_status")
+        was_dead = conn.execute(
+            "SELECT discovery_status FROM companies WHERE id=?", (cid,)
+        ).fetchone()["discovery_status"] == "dead"
         fields["discovery_status"] = status
         if status == "dead":
             conn.execute("UPDATE postings SET closed=1 WHERE company_id=? AND closed=0", (cid,))
+        elif was_dead:
+            # reviving from dead: undo the bulk close so its postings come back
+            conn.execute("UPDATE postings SET closed=0 WHERE company_id=? AND closed=1", (cid,))
     if fields:
         sets = ", ".join(f"{k}=?" for k in fields)
         conn.execute(f"UPDATE companies SET {sets} WHERE id=?", (*fields.values(), cid))
