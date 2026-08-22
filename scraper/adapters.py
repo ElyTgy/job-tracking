@@ -715,7 +715,45 @@ def fetch_bamboohr(feed_url: str):
     return out
 
 
+def fetch_oracle(feed_url: str):
+    """Oracle HCM Candidate Experience (e.g. Coherent). feed_url is the public site,
+    https://{host}/hcmUI/CandidateExperience/en/sites/{site} ; the recruitingCEJobRequisitions
+    REST finder behind it needs no auth and pages the whole listing (limit<=200)."""
+    m = re.search(r"(https://[^/]+)/hcmUI/CandidateExperience/[^/]+/sites/([^/?#]+)", feed_url)
+    if not m:
+        raise ValueError(f"unrecognized oracle feed url: {feed_url}")
+    origin, site = m.groups()
+    api = f"{origin}/hcmRestApi/resources/latest/recruitingCEJobRequisitions"
+    out, offset, limit = [], 0, 200
+    while True:
+        data = _get_json(
+            f"{api}?onlyData=true&expand=requisitionList.secondaryLocations"
+            f"&finder=findReqs;siteNumber={site},limit={limit},offset={offset}"
+        )
+        item = (data.get("items") or [{}])[0]
+        batch = item.get("requisitionList") or []
+        for j in batch:
+            locs = [j.get("PrimaryLocation") or ""] + [
+                x.get("Name", "") for x in (j.get("secondaryLocations") or []) if isinstance(x, dict)
+            ]
+            out.append(
+                {
+                    "posting_key": str(j["Id"]),
+                    "title": (j.get("Title") or "").strip(),
+                    "url": f"{origin}/hcmUI/CandidateExperience/en/sites/{site}/job/{j['Id']}",
+                    "location": "; ".join(x for x in locs if x),
+                    "department": j.get("JobFamily") or j.get("Department") or "",
+                    "posted_date": j.get("PostedDate") or "",
+                }
+            )
+        offset += len(batch)
+        if not batch or offset >= int(item.get("TotalJobsCount") or 0):
+            break
+    return out
+
+
 FETCHERS = {
+    "oracle": fetch_oracle,
     "pinpoint": fetch_pinpoint,
     "bamboohr": fetch_bamboohr,
     "hibob": fetch_hibob,
