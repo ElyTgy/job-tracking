@@ -82,6 +82,13 @@
   #p-list .row.expander { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 8px;
                           padding: 10px 16px; background: var(--muted); border-style: dashed; box-shadow: none; }
   #p-list .row.expander a { font-weight: 500; }
+
+  /* triage motion: clicked card shrinks away, survivors slide to their new slot, newcomers fade in */
+  #p-list .row.leaving { animation: card-leave .22s ease-in forwards; pointer-events: none; }
+  #p-list .row.entering { animation: card-enter .3s ease-out both; }
+  #p-list .row.moving { transition: transform .3s cubic-bezier(.2,.7,.2,1); }
+  @keyframes card-leave { to { opacity: 0; transform: scale(.92) translateY(-6px); } }
+  @keyframes card-enter { from { opacity: 0; transform: translateY(10px) scale(.98); } }
   .card-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 0; }
   .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--muted); color: var(--foreground);
             display: grid; place-items: center; font-weight: 600; font-size: 14px; flex: 0 0 auto;
@@ -687,8 +694,8 @@ function toggleCompanyHide(name) {
 }
 
 const STATUSES = ["new", "apply later", "backlog", "irrelevant", "applied", "interviewing", "rejected", "offer"];
-// In the All tab, backlog and irrelevant are still listed but greyed out below everything else.
-const DIM_RANK = { backlog: 1, irrelevant: 2 };
+// The All tab is the triage inbox: only postings you haven't sorted yet. Clicking
+// To apply / Maybe / No files the card under its own tab and it leaves the inbox.
 
 // Which status tab a posting belongs to. Anything the company has taken down is
 // "missed" regardless of how far along you were (its own status is kept and
@@ -699,7 +706,7 @@ function statusTab(p) {
 }
 function inStatusTab(p, tab) {
   const t = statusTab(p);
-  if (tab === "") return t !== "missed";   // All = every live posting
+  if (tab === "") return t === "new";      // All = inbox of untriaged live postings
   return t === tab;
 }
 
@@ -767,7 +774,7 @@ function renderStatusCounts() {  // per-tab counts, ignoring search/facets so th
     if (eligBlocked(p)) continue;
     const t = statusTab(p);
     n[t] = (n[t] || 0) + 1;
-    if (t !== "missed") n[""]++;
+    if (t === "new") n[""]++;
   }
   for (const b of $("#p-statusseg").children) {
     const c = b.querySelector(".tabcount");
@@ -775,12 +782,11 @@ function renderStatusCounts() {  // per-tab counts, ignoring search/facets so th
   }
 }
 
-function dimRank(p) { return pStatus === "" ? (DIM_RANK[p.user_status] || 0) : 0; }
 function sortRows(rows) {
   const byDate = (a, b) => (b.first_seen || "").localeCompare(a.first_seen || "") || a.id - b.id;
   const inner = $("#p-sort").value === "date" ? byDate
     : (a, b) => b.score - a.score || byDate(a, b);
-  return rows.sort((a, b) => dimRank(a) - dimRank(b) || inner(a, b));
+  return rows.sort(inner);
 }
 
 function renderPostings() {
@@ -795,13 +801,7 @@ function renderPostings() {
   const collapse = !q;
   const shown = {}, expanderDone = {};
   const html = [];
-  let lastRank = 0;
   for (const p of rows) {
-    const rank = dimRank(p);
-    if (rank !== lastRank) {   // divider where the greyed-out backlog / irrelevant section starts
-      html.push(`<div class="groupbreak">${rank === 1 ? "Backlog" : "Irrelevant"}</div>`);
-      lastRank = rank;
-    }
     shown[p.company] = (shown[p.company] || 0) + 1;
     const flooding = collapse && counts[p.company] > COLLAPSE_AT && !expanded.has(p.company);
     if (flooding && shown[p.company] > COLLAPSE_SHOW) {
@@ -825,7 +825,7 @@ function postingRow(p) {
   const chips = (p.tag_hits || "").split(",").filter(Boolean).slice(0, 4)
     .map((h) => `<span class="chip ${esc(p.tag)}">${esc(h)}</span>`).join(" ");
   const initial = (p.company || "?").trim()[0].toUpperCase();
-  return `<div class="row ${dimRank(p) ? "dim" : ""}">
+  return `<div class="row" data-id="${p.id}">
     <div class="card-head">
       <span class="avatar">${esc(initial)}</span>
       <div>
@@ -903,18 +903,56 @@ new ResizeObserver(measureSticky).observe($(".topbar"));
 new ResizeObserver(measureSticky).observe($("#view-postings .controls"));
 measureSticky();
 
+const REDUCED_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 async function setStatus(id, status) {
-  await fetch(`/api/postings/${id}/status`, {
+  const p = POSTINGS.find((x) => x.id === id);
+  const prev = p ? p.user_status : null;
+  if (p) p.user_status = status;
+
+  // optimistic: the card reacts now, the server catches up in the background
+  fetch(`/api/postings/${id}/status`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),
-  });
-  const p = POSTINGS.find((x) => x.id === id);
-  if (p) p.user_status = status;
+  }).then((r) => { if (!r.ok) throw new Error(r.status); })
+    .catch((e) => { console.error("status save failed", e); if (p) p.user_status = prev; renderPostings(); renderFacets(); });
+
+  const list = $("#p-list");
+  const card = list.querySelector(`.row[data-id="${id}"]`);
+  if (card && !REDUCED_MOTION) {
+    card.classList.add("leaving");
+    await new Promise((res) => { card.addEventListener("animationend", res, { once: true }); setTimeout(res, 300); });
+  }
   // "hidden" changes whether this row (and the facet counts) should even be on
-  // the page -- re-render so hiding/un-hiding takes effect immediately instead
-  // of waiting for some other unrelated action to trigger a redraw.
-  renderPostings();
-  renderFacets();
+  // the page -- re-render so hiding/un-hiding takes effect immediately.
+  animatedRerender(() => { renderPostings(); renderFacets(); });
+}
+
+// FLIP re-render: snapshot where every card sits, redraw, then slide survivors from
+// their old slot to the new one and fade in cards that weren't on screen before.
+function animatedRerender(render) {
+  const list = $("#p-list");
+  if (REDUCED_MOTION) { render(); return; }
+  const before = new Map();
+  list.querySelectorAll(".row[data-id]:not(.leaving)").forEach((el) => before.set(el.dataset.id, el.getBoundingClientRect()));
+  render();
+  const moving = [];
+  list.querySelectorAll(".row[data-id]").forEach((el) => {
+    const old = before.get(el.dataset.id);
+    if (!old) { el.classList.add("entering"); return; }
+    const now = el.getBoundingClientRect();
+    const dx = old.left - now.left, dy = old.top - now.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    el.style.transform = `translate(${dx}px, ${dy}px)`;
+    moving.push(el);
+  });
+  if (!moving.length) return;
+  list.getBoundingClientRect();  // force layout so the transform below actually transitions
+  requestAnimationFrame(() => moving.forEach((el) => {
+    el.classList.add("moving");
+    el.style.transform = "";
+    el.addEventListener("transitionend", () => el.classList.remove("moving"), { once: true });
+  }));
 }
 
 function gotoCompany(id) {
@@ -1107,7 +1145,7 @@ function renderIssues() {
 // ---- add / fix company form ----
 let ATS = [], cfId = null;
 async function loadAts() {
-  ATS = await fetch("/api/ats").then((r) => r.json());
+  ATS = await getJSON("/api/ats").catch(() => []);   // only the company dialog needs it
   $("#cf-ats").innerHTML = `<option value="">— none / unknown —</option>` +
     ATS.map((a) => `<option value="${a.key}">${a.key}</option>`).join("");
   $("#cf-ats").onchange = () => {
@@ -1394,13 +1432,42 @@ function renderAnalysis() {
   $("#an-body").innerHTML = html.join("");
 }
 
+// GET JSON with retries. The hosted board runs as a serverless function, and the
+// first request after it has gone cold can be slow or fail outright while the
+// runtime, the libsql client and the Turso TLS session spin up; the retry
+// almost always lands on a warm instance. Non-2xx responses (a 504 HTML page,
+// say) are errors rather than being handed to .json().
+async function getJSON(url, attempts = 3) {
+  let err;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`${url} → HTTP ${r.status}`);
+      return await r.json();
+    } catch (e) {
+      err = e;
+      if (i < attempts - 1) await new Promise((res) => setTimeout(res, 600 * (i + 1)));
+    }
+  }
+  throw err;
+}
+
 async function boot() {
-  const [p, c, run, pe] = await Promise.all([
-    fetch("/api/postings").then((r) => r.json()),
-    fetch("/api/companies").then((r) => r.json()),
-    fetch("/api/runs/latest").then((r) => r.json()),
-    fetch("/api/people").then((r) => r.json()),
-  ]);
+  $("#p-list").innerHTML = "<p class='empty'>Loading…</p>";
+  let p, c, run, pe;
+  try {
+    [p, c, run, pe] = await Promise.all([
+      getJSON("/api/postings"),
+      getJSON("/api/companies"),
+      getJSON("/api/runs/latest").catch(() => ({})),   // nice-to-have: never blocks the board
+      getJSON("/api/people").catch(() => []),
+    ]);
+  } catch (e) {
+    console.error(e);
+    $("#p-list").innerHTML = `<p class='empty'>Couldn't load the board (${esc(String(e.message || e))}).
+      <a href="javascript:void 0" onclick="boot()">Try again</a></p>`;
+    return;
+  }
   POSTINGS = p; COMPANIES = c; PEOPLE = pe;
   POSTINGS.forEach((x) => { x.buckets = bucketize(x.location); scorePosting(x); });
   if (run && run.started) {
