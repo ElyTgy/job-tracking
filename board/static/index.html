@@ -107,6 +107,31 @@
   .status-sel { padding: 6px 9px; font-size: 12.5px; box-shadow: none; font-weight: 500; }
   .row:has(.badge.new) { border-color: var(--new-line); }
 
+  /* multi-select: tick boxes on each card; click anywhere on a card (not a link/button)
+     to toggle it, shift-click for a range. A floating bar applies one status to all. */
+  #p-list .row { cursor: pointer; user-select: none; }
+  #p-list .row a, #p-list .row button, #p-list .row select, #p-list .row .company-link { user-select: text; }
+  .pick { width: 16px; height: 16px; margin: 0; flex: 0 0 auto; cursor: pointer; accent-color: var(--primary);
+          opacity: .35; transition: opacity .15s; }
+  .row:hover .pick, .row.selected .pick, body.selecting .pick { opacity: 1; }
+  #p-list .row.selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(24,24,27,.12), var(--shadow-sm);
+                          background: #fafafa; }
+  #p-list .row.selected.dim { opacity: 1; filter: none; }
+  #bulkbar { position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+             display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; z-index: 40;
+             background: var(--card); border: 1px solid var(--border-hi); border-radius: 12px;
+             box-shadow: 0 12px 32px rgba(0,0,0,.16); transition: transform .2s, opacity .2s; }
+  #bulkbar.on { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+  #bulkbar .n { font: 600 13px var(--font); margin-right: 4px; white-space: nowrap; }
+  #bulkbar .triage button { padding: 7px 13px; font-size: 13px; }
+  #bulkbar .sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
+  #bulkbar .lnk { background: none; border: none; cursor: pointer; color: var(--muted-fg); font: 500 12.5px var(--font); padding: 6px 8px; }
+  #bulkbar .lnk:hover { color: var(--foreground); }
+  @media (max-width: 560px) {
+    #bulkbar { left: 10px; right: 10px; transform: translateY(20px); flex-wrap: wrap; justify-content: center; bottom: 12px; }
+    #bulkbar.on { transform: none; }
+  }
+
   /* status colours -- one palette shared by the status tabs and the per-card dropdown */
   :root {
     --st-new: #3f3f46;         --st-new-soft: #f4f4f5;
@@ -368,6 +393,17 @@
       <button data-st="offer" class="st-offer">Offer<span class="tabcount"></span></button>
       <button data-st="missed" class="st-missed" title="taken down by the company before you finished with it">Missed<span class="tabcount"></span></button>
     </div>
+  </div>
+  <div id="bulkbar" role="toolbar" aria-label="Bulk actions">
+    <span class="n" id="bulk-n">0 selected</span>
+    <span class="triage">
+      <button class="st-apply-later" onclick="bulkStatus('apply later')" title="mark all selected as Apply later">To apply</button>
+      <button class="st-backlog" onclick="bulkStatus('backlog')" title="mark all selected as Backlog">Maybe</button>
+      <button class="st-irrelevant" onclick="bulkStatus('irrelevant')" title="mark all selected as Irrelevant">No</button>
+    </span>
+    <span class="sep"></span>
+    <button class="lnk" onclick="selectAllVisible()" title="select every card currently shown">Select all</button>
+    <button class="lnk" onclick="clearSelection()" title="Esc">Clear</button>
   </div>
   <div class="pwrap">
     <div id="sb-backdrop" onclick="closeDrawer()"></div>
@@ -798,8 +834,10 @@ function postingRow(p) {
   const chips = (p.tag_hits || "").split(",").filter(Boolean).slice(0, 4)
     .map((h) => `<span class="chip ${esc(p.tag)}">${esc(h)}</span>`).join(" ");
   const initial = (p.company || "?").trim()[0].toUpperCase();
-  return `<div class="row" data-id="${p.id}">
+  return `<div class="row${SELECTED.has(p.id) ? " selected" : ""}" data-id="${p.id}">
     <div class="card-head">
+      <input type="checkbox" class="pick" ${SELECTED.has(p.id) ? "checked" : ""} aria-label="select posting"
+             onclick="event.stopPropagation(); toggleSelect(${p.id}, event.shiftKey)">
       <span class="avatar">${esc(initial)}</span>
       <div>
         <div class="company-link" onclick="gotoCompany(${p.company_id})">${esc(p.company)}</div>
@@ -878,25 +916,87 @@ measureSticky();
 
 const REDUCED_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-async function setStatus(id, status) {
-  const p = POSTINGS.find((x) => x.id === id);
-  const prev = p ? p.user_status : null;
-  if (p) p.user_status = status;
+// ---- multi-select ----
+const SELECTED = new Set();   // posting ids
+let lastPicked = null;        // anchor for shift-click ranges
 
-  // optimistic: the card reacts now, the server catches up in the background
-  fetch(`/api/postings/${id}/status`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
-  }).then((r) => { if (!r.ok) throw new Error(r.status); })
-    .catch((e) => { console.error("status save failed", e); if (p) p.user_status = prev; renderPostings(); renderFacets(); });
+function visibleIds() { return [...$("#p-list").querySelectorAll(".row[data-id]")].map((el) => +el.dataset.id); }
+function toggleSelect(id, range) {
+  if (range && lastPicked != null && lastPicked !== id) {
+    const ids = visibleIds(), a = ids.indexOf(lastPicked), b = ids.indexOf(id);
+    if (a >= 0 && b >= 0) {
+      const on = !SELECTED.has(id);
+      for (let i = Math.min(a, b); i <= Math.max(a, b); i++) on ? SELECTED.add(ids[i]) : SELECTED.delete(ids[i]);
+    }
+  } else {
+    SELECTED.has(id) ? SELECTED.delete(id) : SELECTED.add(id);
+  }
+  lastPicked = id;
+  syncSelection();
+}
+function selectAllVisible() { visibleIds().forEach((id) => SELECTED.add(id)); syncSelection(); }
+function clearSelection() { SELECTED.clear(); lastPicked = null; syncSelection(); }
+function syncSelection() {  // paint selection state onto whatever cards are on screen
+  for (const id of [...SELECTED]) if (!POSTINGS.some((p) => p.id === id)) SELECTED.delete(id);
+  $("#p-list").querySelectorAll(".row[data-id]").forEach((el) => {
+    const on = SELECTED.has(+el.dataset.id);
+    el.classList.toggle("selected", on);
+    const cb = el.querySelector(".pick"); if (cb) cb.checked = on;
+  });
+  const n = SELECTED.size;
+  document.body.classList.toggle("selecting", n > 0);
+  $("#bulkbar").classList.toggle("on", n > 0);
+  $("#bulk-n").textContent = `${n} selected`;
+}
+// click anywhere on a card toggles it -- except on the things that do their own job
+$("#p-list").addEventListener("click", (e) => {
+  const card = e.target.closest(".row[data-id]");
+  if (!card || e.target.closest("a, button, select, option, input, .company-link, .score, .badge")) return;
+  if (window.getSelection && String(window.getSelection()).length) return;  // they were copying text
+  toggleSelect(+card.dataset.id, e.shiftKey);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && SELECTED.size) { clearSelection(); return; }
+  if ((e.metaKey || e.ctrlKey) && e.key === "a" && !e.target.matches("input, textarea, select")
+      && $("#view-postings").style.display !== "none") { e.preventDefault(); selectAllVisible(); }
+});
+function bulkStatus(status) {
+  const ids = [...SELECTED];
+  clearSelection();
+  setStatuses(ids, status);
+}
+
+function setStatus(id, status) { return setStatuses([id], status); }
+
+async function setStatuses(ids, status) {
+  const prev = new Map();
+  for (const id of ids) {
+    const p = POSTINGS.find((x) => x.id === id);
+    if (!p) continue;
+    prev.set(id, p.user_status);
+    p.user_status = status;
+  }
+
+  // optimistic: the cards react now, the server catches up in the background
+  for (const id of prev.keys()) {
+    fetch(`/api/postings/${id}/status`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    }).then((r) => { if (!r.ok) throw new Error(r.status); })
+      .catch((e) => {
+        console.error("status save failed", id, e);
+        const p = POSTINGS.find((x) => x.id === id); if (p) p.user_status = prev.get(id);
+        renderPostings(); renderFacets();
+      });
+  }
 
   const list = $("#p-list");
-  const card = list.querySelector(`.row[data-id="${id}"]`);
-  if (card && !REDUCED_MOTION) {
-    card.classList.add("leaving");
-    await new Promise((res) => { card.addEventListener("animationend", res, { once: true }); setTimeout(res, 300); });
+  const cards = ids.map((id) => list.querySelector(`.row[data-id="${id}"]`)).filter(Boolean);
+  if (cards.length && !REDUCED_MOTION) {
+    cards.forEach((c) => c.classList.add("leaving"));
+    await new Promise((res) => { cards[cards.length - 1].addEventListener("animationend", res, { once: true }); setTimeout(res, 300); });
   }
-  // "hidden" changes whether this row (and the facet counts) should even be on
+  // "hidden" changes whether these rows (and the facet counts) should even be on
   // the page -- re-render so hiding/un-hiding takes effect immediately.
   animatedRerender(() => { renderPostings(); renderFacets(); });
 }
