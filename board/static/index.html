@@ -409,6 +409,14 @@
     <div id="sb-backdrop" onclick="closeDrawer()"></div>
     <aside id="sidebar">
       <div id="sb-close"><b>Filters</b><button class="iconbtn primary" onclick="closeDrawer()">Done</button></div>
+      <div class="facet" id="facet-fresh">
+        <h4>Freshness</h4>
+        <div class="opts">
+          <label title="Only postings that appeared in the latest completed scrape — the ones wearing the NEW badge">
+            <input type="checkbox" id="only-new" onchange="setOnlyNew(this.checked)">
+            <span>New postings only</span><span class="cnt" id="cnt-onlynew">0</span></label>
+        </div>
+      </div>
       <div class="facet" id="facet-elig">
         <h4>Eligibility</h4>
         <div class="opts">
@@ -687,6 +695,15 @@ const ELIG = {
   nosponsor: (localStorage.getItem("hideNoSponsor") ?? "1") === "1",
   export: (localStorage.getItem("hideExport") ?? "") === "1",
 };
+// "New" = appeared in the latest completed full run (the NEW badge). A view
+// filter like search rather than a standing exclusion, but persisted anyway so
+// a digest-driven "what's new?" visit doesn't need re-ticking every time.
+let ONLY_NEW = localStorage.getItem("onlyNew") === "1";
+function setOnlyNew(on) {
+  ONLY_NEW = on;
+  localStorage.setItem("onlyNew", on ? "1" : "");
+  renderPostings(); renderFacets();
+}
 function setElig(kind, on) {
   ELIG[kind] = on;
   localStorage.setItem(
@@ -749,6 +766,7 @@ function baseRows() {  // rows passing everything EXCEPT the facet filters
     if (!inStatusTab(p, pStatus)) return false;
     if (q && !(p.title + " " + p.company + " " + (p.location || "")).toLowerCase().includes(q)) return false;
     if (eligBlocked(p)) return false;
+    if (ONLY_NEW && !p.is_new) return false;
     return true;
   });
 }
@@ -782,6 +800,8 @@ function renderFacets() {
     $("#cnt-" + k).textContent = n[k];
     $("#hide-" + k).checked = ELIG[k];
   }
+  $("#cnt-onlynew").textContent = open.filter((p) => p.is_new && !eligBlocked(p)).length;
+  $("#only-new").checked = ONLY_NEW;
   for (const kind of ["loc", "comp"]) {
     $("#f-" + kind).innerHTML = facetOptions(kind).map(([v, n]) => `
       <label><input type="checkbox" ${OFF[kind].has(v) ? "" : "checked"}
@@ -898,7 +918,8 @@ function toggleSidebar() {
 }
 function closeDrawer() { document.body.classList.remove("sb-open"); }
 function updateFilterCount() {  // badge on the Filters button: how many facets are turned off
-  const n = OFF.loc.size + OFF.comp.size + (typeof ELIG === "object" ? Object.values(ELIG).filter(Boolean).length : 0);
+  const n = OFF.loc.size + OFF.comp.size + (typeof ELIG === "object" ? Object.values(ELIG).filter(Boolean).length : 0)
+    + (ONLY_NEW ? 1 : 0);
   $("#fcount").textContent = n ? String(n) : "";
 }
 if (localStorage.getItem("sbCollapsed")) document.body.classList.add("sb-collapsed");
