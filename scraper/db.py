@@ -12,7 +12,9 @@ r["col"], r[0], dict(r) and tuple(r).
 """
 import os
 import sqlite3
+import sys
 import threading
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -203,6 +205,28 @@ class _Cursor:
         return iter(self.fetchall())
 
 
+# Total ~51s of backoff: rides out a Wi-Fi flap or a Turso-side reset without
+# stalling a genuinely-offline machine for long (run_check separately checks
+# for network up-front and gives up after 5 minutes).
+_RETRY_DELAYS = (1.0, 5.0, 15.0, 30.0)
+
+
+def _is_conn_error(e: Exception) -> bool:
+    """True for libsql transport failures, False for real SQL errors.
+
+    libsql surfaces everything as ValueError with a nested message; a bad
+    statement looks like `Hrana: `stream error: ... SQLite input error ...``
+    and must NOT be retried, while a dead socket looks like
+    `Hrana: `http error: `connection error: Connection reset by peer ...```.
+    """
+    if not isinstance(e, ValueError):
+        return False
+    s = str(e)
+    if "SQLite input error" in s:
+        return False
+    return "connection error" in s or "http error" in s or "timeout" in s.lower()
+
+
 class _Conn:
     """Wraps a connection (sqlite3 or libsql) to return wrapped cursors and
     serialize access.
@@ -216,35 +240,64 @@ class _Conn:
 
     On error the connection drops itself from the connect() cache, so one
     that's gone stale (idle timeout, dropped network) self-heals on the next
-    connect() instead of poisoning every request after it.
+    connect() instead of poisoning every request after it. That alone doesn't
+    save a long-lived caller (run_check holds one conn for an hour-long sweep),
+    so for the hosted backend a dropped connection is also retried in place:
+    the statement that hit the dead socket reconnects and re-runs. Any earlier
+    statements of an uncommitted transaction die with the old socket -- callers
+    commit per company, so the blast radius is one company's partial update,
+    repaired by the next run.
     """
 
-    def __init__(self, conn, lock):
+    def __init__(self, conn, lock, factory=None):
         self._conn = conn
         self._lock = lock
+        self._factory = factory  # rebuilds the raw connection; None = no retry (local sqlite)
 
     def __getattr__(self, name):
         return getattr(self._conn, name)
 
-    def execute(self, sql, params=()):
-        with self._lock:
-            try:
-                return _Cursor(self._conn.execute(sql, tuple(params)))
-            except Exception:
+    def _run(self, op):
+        try:
+            return op(self._conn)
+        except Exception as e:
+            if self._factory is None or not _is_conn_error(e):
                 _invalidate_cache()
                 raise
+            last = e
+        for attempt, delay in enumerate(_RETRY_DELAYS, 1):
+            print(
+                f"DB connection dropped ({last}); reconnecting in {delay:.0f}s "
+                f"(attempt {attempt}/{len(_RETRY_DELAYS)})",
+                file=sys.stderr, flush=True,
+            )
+            time.sleep(delay)
+            try:
+                self._conn = self._factory()
+                return op(self._conn)
+            except Exception as e:
+                if not _is_conn_error(e):
+                    _invalidate_cache()
+                    raise
+                last = e
+        _invalidate_cache()
+        raise last
+
+    def execute(self, sql, params=()):
+        with self._lock:
+            return _Cursor(self._run(lambda c: c.execute(sql, tuple(params))))
 
     def executemany(self, sql, seq):
         with self._lock:
-            try:
-                return _Cursor(self._conn.executemany(sql, [tuple(p) for p in seq]))
-            except Exception:
-                _invalidate_cache()
-                raise
+            rows = [tuple(p) for p in seq]
+            return _Cursor(self._run(lambda c: c.executemany(sql, rows)))
 
     def commit(self):
+        # After a mid-transaction reconnect there is nothing to commit on the
+        # fresh connection, so a retried commit succeeds trivially -- same
+        # one-company blast radius as documented on the class.
         with self._lock:
-            return self._conn.commit()
+            return self._run(lambda c: c.commit())
 
 
 # ------------------------------------------------------------------------ connect
@@ -299,7 +352,8 @@ def connect():
 
         if url and token:
             import libsql  # hosted backend; only needed when configured
-            conn = _Conn(libsql.connect(url, auth_token=token), _LOCK)
+            factory = lambda: libsql.connect(url, auth_token=token)  # noqa: E731
+            conn = _Conn(factory(), _LOCK, factory=factory)
         else:
             DB_PATH.parent.mkdir(parents=True, exist_ok=True)
             # timeout: wait for a concurrent writer (scraper/audit runs) instead of

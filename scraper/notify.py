@@ -9,6 +9,7 @@ import os
 import smtplib
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -129,10 +130,19 @@ def send_email(subject: str, html: str) -> bool:
     msg["From"] = addr
     msg["To"] = TO_ADDRESS
     msg.attach(MIMEText(html, "html"))
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as s:
-        s.login(addr, pw)
-        s.sendmail(addr, [TO_ADDRESS], msg.as_string())
-    return True
+    # Retry transient transport failures (DNS not up right after wake, dropped
+    # socket); a login/auth error is not transient and raises immediately.
+    for attempt in range(3):
+        try:
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as s:
+                s.login(addr, pw)
+                s.sendmail(addr, [TO_ADDRESS], msg.as_string())
+            return True
+        except (OSError, smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError) as e:
+            if attempt == 2:
+                raise
+            print(f"SMTP send failed ({e}); retrying in 30s...", file=sys.stderr, flush=True)
+            time.sleep(30)
 
 
 def macos_notify(count: int):

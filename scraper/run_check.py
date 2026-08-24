@@ -206,11 +206,19 @@ def main():
             failed += 1
             msg = f"{type(e).__name__}: {e}"[:200]
             failures.append(f"{c['name']}: {msg}")
-            conn.execute(
-                "UPDATE companies SET last_checked=?, last_check_status=? WHERE id=?",
-                (run_started, f"error:{msg}", c["id"]),
-            )
             print(f"  FAIL  {c['name']}: {msg}", file=sys.stderr)
+            # 2026-08-24: a Turso connection reset killed a full run from right
+            # here -- the failure being recorded WAS the dead connection, so
+            # this write raised too and escaped the loop. The DB layer now
+            # reconnects on its own; this guard is the backstop so bookkeeping
+            # can never take down the sweep it's reporting on.
+            try:
+                conn.execute(
+                    "UPDATE companies SET last_checked=?, last_check_status=? WHERE id=?",
+                    (run_started, f"error:{msg}", c["id"]),
+                )
+            except Exception as e2:  # noqa: BLE001
+                print(f"  (could not record failure for {c['name']}: {e2})", file=sys.stderr)
         conn.commit()
 
     if not args.company:
