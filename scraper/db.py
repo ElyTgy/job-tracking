@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS postings (
     pinned INTEGER DEFAULT 0,   -- manual standing posting; never auto-closed
     first_seen TEXT NOT NULL,
     last_seen TEXT NOT NULL,
-    is_new INTEGER DEFAULT 1,   -- set on insert, cleared after the next run's digest
+    is_new INTEGER DEFAULT 1,   -- board's NEW badge: recomputed at the end of every full run
+    notified_at TEXT,           -- when a digest reported this posting; NULL = never emailed
     closed INTEGER DEFAULT 0,
     user_status TEXT DEFAULT 'new',  -- new | apply later | backlog | irrelevant | applied | interviewing | rejected | offer
     export_status TEXT,         -- us-person-required | export-license-possible
@@ -89,6 +90,7 @@ CREATE TABLE IF NOT EXISTS people (
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY,
     started TEXT NOT NULL,
+    scope TEXT DEFAULT 'full',  -- full | company (a --company run checks one feed)
     finished TEXT,
     companies_checked INTEGER DEFAULT 0,
     companies_failed INTEGER DEFAULT 0,
@@ -124,6 +126,21 @@ MIGRATIONS = [
     # and also catches rows an older DB's 'not seen' column default may still insert.
     "UPDATE postings SET user_status='new' WHERE user_status IN ('not seen', 'seen')",
     "UPDATE postings SET user_status='irrelevant' WHERE user_status='hidden'",
+    # notified_at: the digest that reported this posting; NULL = never emailed. This
+    # is what makes the email exactly-once -- is_new can't, because it is recomputed
+    # per run and notify may fire more than once between runs.
+    # The backfill runs ONLY on the migration that adds the column (see _apply_schema),
+    # so upgrading an existing DB doesn't email the entire board once; re-running it
+    # on every connect would stamp brand-new postings as sent before notify saw them.
+    # Rows still carrying the NEW badge are the ones the pending digest was about to
+    # cover, so they stay unnotified and go out once; everything older is stamped as
+    # already sent.
+    ("ALTER TABLE postings ADD COLUMN notified_at TEXT",
+     ["UPDATE postings SET notified_at=last_seen WHERE is_new=0"]),
+    # scope: 'company' for --company runs, so they can't reset the 40h spacing guard
+    # and starve the full run that the digest depends on.
+    ("ALTER TABLE runs ADD COLUMN scope TEXT",
+     ["UPDATE runs SET scope=CASE WHEN companies_checked>1 THEN 'full' ELSE 'company' END"]),
 ]
 
 
@@ -238,10 +255,17 @@ def _apply_schema(conn) -> None:
         if stmt.strip():
             conn.execute(stmt)
     for mig in MIGRATIONS:
+        # A migration is either a bare statement or (statement, [follow-ups]); the
+        # follow-ups run only when the statement itself succeeded, which is how a
+        # one-shot backfill rides along with the ALTER that adds its column without
+        # re-running on every later connect.
+        mig, follow_ups = mig if isinstance(mig, tuple) else (mig, ())
         try:
             conn.execute(mig)
         except Exception:  # sqlite3.OperationalError locally, ValueError from libsql
-            pass  # column already exists
+            continue  # column already exists -- and its backfill already ran
+        for stmt in follow_ups:
+            conn.execute(stmt)
     conn.commit()
 
 

@@ -41,8 +41,12 @@ def wait_for_network(max_wait: float = 300.0, hosts=("boards-api.greenhouse.io",
 
 
 def recently_ran(conn, hours: float = 40.0) -> bool:
+    """Only full runs count. A --company run checks one feed on demand; letting it
+    reset the clock lets a few manual checks starve the scheduled full run for
+    days, which both stalls the board and piles postings up in the next digest."""
     row = conn.execute(
-        "SELECT started FROM runs WHERE finished IS NOT NULL ORDER BY id DESC LIMIT 1"
+        "SELECT started FROM runs WHERE finished IS NOT NULL AND scope='full' "
+        "ORDER BY id DESC LIMIT 1"
     ).fetchone()
     if not row:
         return False
@@ -182,10 +186,10 @@ def main():
         return 0
 
     run_started = _now()
-    # NEW badge always means "appeared in the latest completed run".
-    if not args.company:
-        conn.execute("UPDATE postings SET is_new=0")
-    cur = conn.execute("INSERT INTO runs (started) VALUES (?)", (run_started,))
+    cur = conn.execute(
+        "INSERT INTO runs (started, scope) VALUES (?,?)",
+        (run_started, "company" if args.company else "full"),
+    )
     run_id = cur.lastrowid
     conn.commit()
 
@@ -218,6 +222,15 @@ def main():
         except Exception as e:  # noqa: BLE001
             print(f"  audit failed: {e}", file=sys.stderr)
 
+    # NEW badge always means "appeared in the latest completed run" -- recomputed
+    # here rather than cleared up front, so a run that dies partway (flaky feed,
+    # dropped DB connection) leaves the previous run's badges standing instead of
+    # wiping the board clean. The digest no longer rides on this flag at all; it
+    # tracks postings.notified_at, which survives any run outcome.
+    if not args.company:
+        conn.execute(
+            "UPDATE postings SET is_new=(first_seen>=?)", (run_started,)
+        )
     conn.execute(
         "UPDATE runs SET finished=?, companies_checked=?, companies_failed=?, "
         "new_postings=?, closed_postings=?, notes=? WHERE id=?",
