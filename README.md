@@ -1,5 +1,7 @@
 # Internship Tracker
 
+UBC co-op is so ass i had to take matters into my own hands
+
 Personal job board: watches your companies' careers pages every other day,
 flags new internship postings, emails a digest, and keeps a recruiter
 directory per company.
