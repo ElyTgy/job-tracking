@@ -122,7 +122,7 @@ Hugging Face,huggingface.co,twitter,ok
 Humanoid,https://humanoid.com,linkedin,ok
 HumonOS,humonos.com,twitter,needs_manual
 HyperTunnel,hypertunnel.com,notion,ok
-Impulse Labs,impulselabs.com,manual,pending
+Impulse Labs,impulselabs.com,manual,ok
 Impulse Space,impulsespace.com,twitter,ok
 INBRAIN Neuroelectronics,inbrain-neuroelectronics.com,notion,ok
 Integral Neurotech,integralneuro.com,notion,ok
@@ -171,6 +171,7 @@ Mistral,https://mistral.ai,linkedin,ok
 MistyWest,https://www.mistywest.com,linkedin,ok
 Modular,modular.com,notion,ok
 Mojo Vision,https://www.mojo.vision,linkedin,ok
+Moss,moss.ag,manual,pending
 Motif Neurotech,motifneuro.tech,notion,ok
 NASA,nasa.gov,notion,ok
 Neuralink,neuralink.com,notion,ok

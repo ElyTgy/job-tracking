@@ -13,7 +13,7 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import adapters, aggregators, audit, classify, db, export_control
+from . import adapters, aggregators, audit, classify, db, export_control, watch
 
 
 def _now() -> str:
@@ -57,6 +57,10 @@ def recently_ran(conn, hours: float = 40.0) -> bool:
 
 
 def check_company(conn, company, cfg, run_started: str) -> dict:
+    # 'watch' companies track a whole page for changes instead of a job feed;
+    # none of the classify/close bookkeeping below applies to them.
+    if company["ats_type"] == "watch":
+        return watch.check(conn, company, run_started)
     fetcher = adapters.FETCHERS[company["ats_type"]]
     # A company may have several boards on the same ATS (e.g. a separate
     # university/early-careers board): feed_url holds them joined by " | ".

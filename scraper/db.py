@@ -89,6 +89,15 @@ CREATE TABLE IF NOT EXISTS people (
     added TEXT
 );
 
+CREATE TABLE IF NOT EXISTS watch_snapshots (
+    id INTEGER PRIMARY KEY,
+    company_id INTEGER NOT NULL REFERENCES companies(id),
+    fetched_at TEXT NOT NULL,
+    hash TEXT NOT NULL,         -- sha256 of content; equal hash = no change stored
+    content TEXT NOT NULL,      -- normalized visible page text (scraper.watch.page_text)
+    diff TEXT                   -- unified diff vs previous snapshot; NULL on the baseline
+);
+
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY,
     started TEXT NOT NULL,

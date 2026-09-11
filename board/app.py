@@ -195,6 +195,7 @@ FEED_HINTS = {
     "pinpoint": "https://careers.COMPANY.com/postings.json",
     "gem": "https://api.gem.com/job_board/v0/SLUG/job_posts/",
     "html": "the careers page URL itself (links + intern/co-op text are scanned)",
+    "watch": "any page URL — the whole page is diffed and every change is reported",
 }
 
 

@@ -752,6 +752,14 @@ def fetch_oracle(feed_url: str):
     return out
 
 
+def fetch_watch(feed_url: str):
+    """'watch' companies diff a whole page (scraper.watch) rather than read a job
+    feed; run_check routes them there before ever looking up a fetcher. This stub
+    only keeps 'watch' a valid ats_type for discover set and the board's probe,
+    where "no postings" is the honest answer."""
+    return []
+
+
 FETCHERS = {
     "oracle": fetch_oracle,
     "pinpoint": fetch_pinpoint,
@@ -776,4 +784,5 @@ FETCHERS = {
     "html": fetch_html,
     "apple": fetch_apple,
     "tesla": fetch_tesla,
+    "watch": fetch_watch,
 }
