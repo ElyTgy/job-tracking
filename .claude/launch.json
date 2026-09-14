@@ -22,6 +22,20 @@
         "8791"
       ],
       "port": 8791
+    },
+    {
+      "name": "board-sqlite",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "BOARD_PASSWORD=",
+        "TURSO_DATABASE_URL=",
+        "TURSO_AUTH_TOKEN=",
+        ".venv/bin/uvicorn",
+        "board.app:app",
+        "--port",
+        "8792"
+      ],
+      "port": 8792
     }
   ]
 }

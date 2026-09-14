@@ -81,9 +81,9 @@
   #p-list .row { margin: 0; padding: 0; display: flex; flex-direction: column; }
 
   /* triage motion: clicked card shrinks away, survivors slide to their new slot, newcomers fade in */
-  #p-list .row.leaving { animation: card-leave .22s ease-in forwards; pointer-events: none; }
-  #p-list .row.entering { animation: card-enter .3s ease-out both; }
-  #p-list .row.moving { transition: transform .3s cubic-bezier(.2,.7,.2,1); }
+  #p-list .row.leaving { animation: card-leave .14s ease-in forwards; pointer-events: none; }
+  #p-list .row.entering { animation: card-enter .2s ease-out both; }
+  #p-list .row.moving { transition: transform .2s cubic-bezier(.2,.8,.2,1); }
   @keyframes card-leave { to { opacity: 0; transform: scale(.92) translateY(-6px); } }
   @keyframes card-enter { from { opacity: 0; transform: translateY(10px) scale(.98); } }
   .card-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 0; }
@@ -1013,30 +1013,60 @@ async function setStatuses(ids, status) {
 
   const list = $("#p-list");
   const cards = ids.map((id) => list.querySelector(`.row[data-id="${id}"]`)).filter(Boolean);
+  // The usual triage click just files a card under another tab. Then nothing else on
+  // screen changes, so pull that one element out instead of redrawing every card
+  // (with a thousand-card inbox the full redraw was most of the delay).
+  const allLeave = cards.length > 0 && cards.every((c) => {
+    const p = POSTINGS.find((x) => x.id === +c.dataset.id);
+    return p && !inStatusTab(p, pStatus);
+  });
+  const render = allLeave ? () => removeCards(cards) : () => { renderPostings(); renderFacets(); };
   if (cards.length && !REDUCED_MOTION) {
     cards.forEach((c) => c.classList.add("leaving"));
-    await new Promise((res) => { cards[cards.length - 1].addEventListener("animationend", res, { once: true }); setTimeout(res, 300); });
+    // measure the survivors while the clicked card shrinks: it keeps its slot until it's gone
+    const before = snapshotRects(list);
+    await new Promise((res) => { cards[cards.length - 1].addEventListener("animationend", res, { once: true }); setTimeout(res, 200); });
+    animatedRerender(render, before);
+    return;
   }
   // "hidden" changes whether these rows (and the facet counts) should even be on
   // the page -- re-render so hiding/un-hiding takes effect immediately.
-  animatedRerender(() => { renderPostings(); renderFacets(); });
+  animatedRerender(render);
+}
+
+function removeCards(els) {
+  els.forEach((el) => el.remove());
+  if ($("#p-list").querySelector(".row[data-id]")) renderStatusCounts();
+  else renderPostings();  // last one gone: draw the empty-state message
+  renderFacets();
+}
+
+function snapshotRects(list) {
+  const before = new Map();
+  list.querySelectorAll(".row[data-id]:not(.leaving)").forEach((el) => before.set(el.dataset.id, el.getBoundingClientRect()));
+  return before;
 }
 
 // FLIP re-render: snapshot where every card sits, redraw, then slide survivors from
 // their old slot to the new one and fade in cards that weren't on screen before.
-function animatedRerender(render) {
+// `before` lets the caller take the snapshot earlier, e.g. during a leave animation.
+function animatedRerender(render, before = null) {
   const list = $("#p-list");
   if (REDUCED_MOTION) { render(); return; }
-  const before = new Map();
-  list.querySelectorAll(".row[data-id]:not(.leaving)").forEach((el) => before.set(el.dataset.id, el.getBoundingClientRect()));
+  before = before || snapshotRects(list);
   render();
   const moving = [];
+  const vh = window.innerHeight;
   list.querySelectorAll(".row[data-id]").forEach((el) => {
     const old = before.get(el.dataset.id);
     if (!old) { el.classList.add("entering"); return; }
     const now = el.getBoundingClientRect();
     const dx = old.left - now.left, dy = old.top - now.top;
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    // only animate cards that are on screen at either end; the hundreds below the
+    // fold can just appear in their new slot
+    const onScreen = (r) => r.bottom > -vh && r.top < 2 * vh;
+    if (!onScreen(old) && !onScreen(now)) return;
     el.style.transform = `translate(${dx}px, ${dy}px)`;
     moving.push(el);
   });
