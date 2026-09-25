@@ -10,6 +10,7 @@ Both expose the same sqlite3-style API the rest of the code uses: conn.execute(.
 returning a cursor with fetchone/fetchall/rowcount/lastrowid, rows that support
 r["col"], r[0], dict(r) and tuple(r).
 """
+import hashlib
 import os
 import sqlite3
 import sys
@@ -98,6 +99,11 @@ CREATE TABLE IF NOT EXISTS watch_snapshots (
     diff TEXT                   -- unified diff vs previous snapshot; NULL on the baseline
 );
 
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,       -- 'schema': fingerprint of SCHEMA + MIGRATIONS last applied
+    value TEXT
+);
+
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY,
     started TEXT NOT NULL,
@@ -152,6 +158,29 @@ MIGRATIONS = [
     # and starve the full run that the digest depends on.
     ("ALTER TABLE runs ADD COLUMN scope TEXT",
      ["UPDATE runs SET scope=CASE WHEN companies_checked>1 THEN 'full' ELSE 'company' END"]),
+    # outreach tracking (Companies tab).
+    # applied_at: date you ticked "applied outside the board" (no scraped posting to mark)
+    "ALTER TABLE companies ADD COLUMN applied_at TEXT",
+    # outreach_status: not started | finding contacts | drafting | reached out
+    #                  | following up | replied | no response
+    "ALTER TABLE companies ADD COLUMN outreach_status TEXT",
+    "ALTER TABLE companies ADD COLUMN outreach_notes TEXT",
+    # outreach_at: date outreach_status last changed
+    "ALTER TABLE companies ADD COLUMN outreach_at TEXT",
+    # per-contact pipeline: to contact | finding email | drafted | messaged
+    #                       | followed up | replied | no reply
+    "ALTER TABLE recruiters ADD COLUMN status TEXT",
+    "ALTER TABLE recruiters ADD COLUMN notes TEXT",
+    "ALTER TABLE recruiters ADD COLUMN status_at TEXT",
+    # status_at: date user_status last changed, so the board can say "applied Sep 12"
+    "ALTER TABLE postings ADD COLUMN status_at TEXT",
+    # company profile: country (e.g. "Canada"), hq ("Vancouver, Canada"), a one-line
+    # description of what they build, and source_detail = which list/post it came from
+    # (sources stays the coarse linkedin|twitter|notion|manual tag)
+    "ALTER TABLE companies ADD COLUMN country TEXT",
+    "ALTER TABLE companies ADD COLUMN hq TEXT",
+    "ALTER TABLE companies ADD COLUMN description TEXT",
+    "ALTER TABLE companies ADD COLUMN source_detail TEXT",
 ]
 
 
@@ -311,7 +340,24 @@ class _Conn:
 
 # ------------------------------------------------------------------------ connect
 
+def _schema_fingerprint() -> str:
+    return hashlib.sha256(repr((SCHEMA, MIGRATIONS)).encode()).hexdigest()[:16]
+
+
+def _schema_current(conn) -> bool:
+    """One read instead of ~30 statements: on Turso every statement is a ~2s round
+    trip, so re-running the idempotent schema pass on each process start made the
+    first request (and every Vercel cold start) take close to a minute."""
+    try:
+        row = conn.execute("SELECT value FROM meta WHERE key='schema'").fetchone()
+    except Exception:  # no meta table yet
+        return False
+    return bool(row) and row[0] == _schema_fingerprint()
+
+
 def _apply_schema(conn) -> None:
+    if _schema_current(conn):
+        return
     bare = "\n".join(line.split("--", 1)[0] for line in SCHEMA.splitlines())
     for stmt in bare.split(";"):
         if stmt.strip():
@@ -328,6 +374,8 @@ def _apply_schema(conn) -> None:
             continue  # column already exists -- and its backfill already ran
         for stmt in follow_ups:
             conn.execute(stmt)
+    conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema', ?)",
+                 (_schema_fingerprint(),))
     conn.commit()
 
 

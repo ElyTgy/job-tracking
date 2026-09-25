@@ -261,14 +261,160 @@
   .open .comp-body { display: block; }
   .comp-body h4, .facet h4 { margin: 10px 0 6px; font: 600 11px var(--font); text-transform: uppercase; letter-spacing: .08em; color: var(--muted-fg); }
   .rec { display: flex; gap: 10px; align-items: center; padding: 5px 0; flex-wrap: wrap; }
-  .email { font: 12.5px var(--mono); color: var(--foreground); }
-  .copy { cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--muted-fg); border-radius: 6px; padding: 2px 8px; font: 11px var(--font); }
-  .copy:hover { color: var(--foreground); border-color: var(--border-hi); }
-  a { color: var(--accent); }
-  .empty { color: var(--muted-fg); padding: 32px; text-align: center; grid-column: 1 / -1; }
-  .unverified { color: var(--warn); font-size: 11px; background: var(--warn-soft); padding: 1px 6px; border-radius: 6px; }
-  .notes { width: 100%; margin-top: 8px; min-height: 44px; resize: vertical; font-size: 12.5px; }
-  code { font: 12px var(--mono); background: var(--muted); padding: 2px 6px; border-radius: 5px; }
+
+  /* ---- company card ---------------------------------------------------------
+     header: identity on the left, application + outreach summary on the right.
+     body (loaded fresh from /api/companies/{id}/detail): roles on the left,
+     outreach (stage, notes, contacts) on the right. */
+  #c-list .row { padding: 0; overflow: hidden; }
+  #c-list .comp-head { padding: 12px 16px; gap: 12px; flex-wrap: wrap; }
+  #c-list .comp-head:hover { background: #fcfcfd; }
+  .comp-id { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 220px; }
+  .comp-id .avatar { width: 34px; height: 34px; font-size: 13px; }
+  .comp-id .meta { color: var(--muted-fg); font-size: 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .comp-id .meta .err { color: var(--exc); }
+  .comp-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; justify-content: flex-end; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font: 500 12px var(--font); padding: 3px 9px;
+          border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill .n { font: 600 10.5px var(--mono); }
+  .pill.ghost { color: var(--dim); border: 1px dashed var(--border-hi); }
+  .pill.st-applied { color: var(--st-applied); background: var(--st-applied-soft); }
+  .pill.st-interviewing { color: var(--st-interviewing); background: var(--st-interviewing-soft); }
+  .pill.st-rejected { color: var(--st-rejected); background: var(--st-rejected-soft); }
+  .pill.st-offer { color: var(--st-offer); background: var(--st-offer-soft); }
+  .pill.st-apply-later { color: var(--st-apply-later); background: var(--st-apply-later-soft); }
+  /* outreach stages: grey = not started, amber = working on it, blue = sent, green = replied */
+  :root { --or-prep: #b45309; --or-prep-soft: #fef3c7; --or-sent: #2563eb; --or-sent-soft: #dbeafe;
+          --or-done: #059669; --or-done-soft: #d1fae5; --or-cold: #71717a; --or-cold-soft: #f4f4f5; }
+  .or-prep { color: var(--or-prep); background: var(--or-prep-soft); }
+  .or-sent { color: var(--or-sent); background: var(--or-sent-soft); }
+  .or-done { color: var(--or-done); background: var(--or-done-soft); }
+  .or-cold { color: var(--or-cold); background: var(--or-cold-soft); }
+  .opencount { font: 500 12px var(--font); color: var(--muted-fg); white-space: nowrap; margin-left: 4px; }
+  .opencount.has { color: var(--new); font-weight: 600; }
+
+  /* expanded card: tab bar, one scrollable list of one-line rows, footer */
+  #c-list .comp-body { margin: 0; padding: 0; background: #fcfcfd; }
+  .ctabs { display: flex; align-items: center; gap: 2px; padding: 8px 12px 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .ctabs > button { background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px;
+                    padding: 7px 10px; font: 500 13px var(--font); color: var(--muted-fg); cursor: pointer; }
+  .ctabs > button:hover { color: var(--foreground); }
+  .ctabs > button.on { color: var(--foreground); border-bottom-color: var(--primary); }
+  .ctabs > button .n { font: 600 10.5px var(--mono); margin-left: 4px; color: var(--dim); }
+  .ctabs > button.on .n { color: var(--muted-fg); }
+  .ctabs .or { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted-fg); padding-bottom: 6px; }
+  .pane { padding: 8px 12px 10px; }
+  .list { max-height: 380px; overflow-y: auto; scrollbar-width: thin; border: 1px solid var(--border);
+          border-radius: 10px; background: var(--card); }
+  .li { display: flex; align-items: center; gap: 10px; padding: 7px 10px; min-height: 40px; font-size: 13px; }
+  .li + .li, .li + .li-more, .li-more + .li { border-top: 1px solid var(--border); }
+  .li:hover { background: #fafafa; }
+  .li .t { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+           color: var(--foreground); text-decoration: none; font-weight: 500; }
+  .li a.t:hover { color: var(--accent); }
+  .li .t .ptitle { color: var(--muted-fg); font-weight: 400; margin-left: 8px; }
+  .li .loc { flex: 0 0 auto; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+             color: var(--muted-fg); font-size: 12px; }
+  .li .when { flex: 0 0 auto; color: var(--dim); font-size: 11.5px; white-space: nowrap; }
+  .li .go { flex: 0 0 auto; color: var(--dim); text-decoration: none; font-size: 13px; padding: 2px 4px; }
+  .li .go:hover { color: var(--accent); }
+  .li .status-sel, .li .cst { flex: 0 0 auto; padding: 2px 6px; font-size: 11.5px; border-radius: 7px; width: 108px; }
+  .li.dim { opacity: .55; }
+  .li.gone .t { color: var(--muted-fg); text-decoration: line-through; text-decoration-color: var(--dim); }
+  .li-more { padding: 7px 10px; font-size: 12px; }
+  /* role type tag: fixed width so titles line up */
+  .rt { flex: 0 0 74px; font: 600 10.5px var(--font); text-transform: uppercase; letter-spacing: .04em;
+        padding: 3px 0; border-radius: 6px; text-align: center; }
+  .rt-electrical { color: #b45309; background: #fef3c7; }
+  .rt-hardware { color: #7c3aed; background: #ede9fe; }
+  .rt-robotics { color: #0d9488; background: #ccfbf1; }
+  .rt-research { color: #db2777; background: #fce7f3; }
+  .rt-software { color: #2563eb; background: #dbeafe; }
+  .rt-other { color: #71717a; background: #f4f4f5; }
+  .rt-test { color: #16a34a; background: #dcfce7; }
+  .rt-mech-mfg { color: #9a3412; background: #ffedd5; }
+  .rt-design { color: #be185d; background: #fdf2f8; }
+  .rt-business { color: #52525b; background: #e4e4e7; }
+  .flag { flex: 0 0 auto; font: 600 10px var(--font); text-transform: uppercase; letter-spacing: .04em; padding: 2px 5px; border-radius: 5px; cursor: help; }
+  .flag.gate { background: #fee2e2; color: #b3272c; }
+  .flag.clr { background: #e0f2fe; color: #075985; }
+  .flag.exp { background: #fef3c7; color: #92600e; }
+  .flag.nospon { background: #ede9fe; color: #5b3fbf; }
+  .newdot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--new); }
+  .flag.added { background: var(--muted); color: var(--muted-fg); cursor: default; }
+  .role-form select { border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; }
+  .ratio { display: inline-flex; align-items: center; gap: 6px; font: 500 12px var(--font); color: var(--dim);
+           white-space: nowrap; margin-left: 4px; min-width: 104px; justify-content: flex-end; }
+  .ratio b { font-weight: 700; color: var(--muted-fg); }
+  .ratio.some { color: var(--muted-fg); }
+  .ratio.some b { color: var(--st-applied); }
+  .ratio .meter { width: 38px; height: 5px; border-radius: 3px; background: var(--muted); overflow: hidden; display: inline-block; }
+  .ratio .meter i { display: block; height: 100%; background: var(--st-applied); border-radius: 3px; }
+  .none { color: var(--muted-fg); font-size: 12.5px; padding: 14px 12px; text-align: center; }
+  .loading { color: var(--muted-fg); font-size: 12.5px; padding: 18px; text-align: center; }
+  .pane-foot { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; color: var(--muted-fg); flex-wrap: wrap; }
+  .pane-foot .iconbtn { padding: 4px 10px; font-size: 12.5px; }
+  .offboard { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .offboard input { margin: 0; accent-color: var(--st-applied); }
+  .cfoot2 { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 12px 10px; border-top: 1px solid var(--border);
+            font-size: 12px; color: var(--muted-fg); }
+  .cfoot2 .spacer { flex: 1; }
+  .cfoot2 .err { color: var(--exc); }
+  /* contacts: a row, click to open notes + actions underneath */
+  .li.person { cursor: pointer; }
+  .li .ini { flex: 0 0 26px; height: 26px; border-radius: 50%; background: var(--muted); border: 1px solid var(--border);
+             display: grid; place-items: center; font: 600 10.5px var(--font); color: var(--foreground); }
+  .li .mail { flex: 0 0 auto; font: 12px var(--mono); color: var(--foreground); max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .li .mail.missing { font-family: var(--font); color: var(--dim); }
+  .li .icon { flex: 0 0 auto; border: 1px solid var(--border); background: var(--card); border-radius: 6px; padding: 1px 6px;
+              font: 500 11px var(--font); color: var(--muted-fg); cursor: pointer; text-decoration: none; }
+  .li .icon:hover { color: var(--foreground); border-color: var(--border-hi); }
+  .li .hasnote { flex: 0 0 auto; font-size: 11px; color: var(--dim); }
+  .person-x { padding: 4px 10px 10px 46px; background: #fafafa; }
+  .person-x .row2 { display: flex; gap: 12px; align-items: center; font-size: 11.5px; color: var(--dim); margin-top: 6px; }
+  .note-box { position: relative; }
+  .note-box textarea { width: 100%; min-height: 64px; resize: vertical; font: 13px/1.45 var(--font); padding: 8px 10px;
+                       border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--foreground); outline: none; }
+  .note-box textarea:focus { border-color: var(--ring); box-shadow: 0 0 0 3px rgba(24,24,27,.06); }
+  .note-box .saved { position: absolute; right: 8px; bottom: 8px; font-size: 11px; color: var(--dim); pointer-events: none; }
+  .pane > .note-box textarea { min-height: 160px; }
+  .lnk { background: none; border: none; padding: 0; cursor: pointer; color: var(--muted-fg); font: 500 11.5px var(--font); }
+  .lnk:hover { color: var(--foreground); }
+  .lnk.danger:hover { color: var(--exc); }
+  .cst { font: 500 12px var(--font); border: 1px solid transparent; cursor: pointer; }
+  .cst.or-none { color: var(--muted-fg); background: var(--muted); }
+  .ct-form { padding: 10px; display: grid; gap: 8px; grid-template-columns: 1fr 1fr; background: #fafafa; }
+  .ct-form input, .ct-form textarea { border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; font: 13px var(--font);
+                                      background: var(--card); color: var(--foreground); min-width: 0; }
+  .ct-form textarea { grid-column: 1 / -1; min-height: 50px; resize: vertical; }
+  .ct-form .acts { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
+  .ct-form .acts .iconbtn { padding: 6px 12px; }
+  .or-sel { padding: 3px 8px; font: 500 12px var(--font); border-radius: 8px; border: 1px solid transparent; cursor: pointer; }
+  .comp-id .mix { color: var(--muted-fg); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .comp-id .cdesc { color: var(--muted-fg); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ccountry { font-weight: 500; font-size: 11px; color: var(--muted-fg); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
+  .comp-id .mix b { font-weight: 600; color: var(--foreground); }
+  @media (max-width: 640px) {
+    .ct-form { grid-template-columns: 1fr; }
+    .li { flex-wrap: wrap; row-gap: 4px; }
+    .li .t { flex: 1 1 calc(100% - 90px); white-space: normal; }
+    .li .loc { max-width: none; }
+    .li .mail { max-width: 100%; }
+    .person-x { padding-left: 12px; }
+    .ctabs .or { margin-left: 0; width: 100%; padding: 4px 10px 8px; }
+  }
+  .outreach-mark { font-weight: 500; }
+  @media (max-width: 820px) {
+    .controls #c-filterseg { flex-wrap: wrap; }
+    .controls #c-filterseg button { flex: 1 0 auto; white-space: nowrap; padding: 6px 8px; }
+  }
+  @media (max-width: 560px) {
+    #c-list .comp-head { padding: 12px; }
+    .comp-right { margin-left: 44px; justify-content: flex-start; }
+    #c-list .comp-body { padding: 10px 10px 12px; }
+    .contact .reach, .contact .note-box, .contact .cfoot { margin-left: 0; }
+  }
 
   /* ---- toggleable sidebar ---- */
   .pwrap { display: flex; gap: 20px; padding: 0 24px 80px; align-items: flex-start; }
@@ -458,6 +604,9 @@
     <div class="seg" id="c-filterseg">
       <button data-f="all" class="active">All</button>
       <button data-f="open">Has openings</button>
+      <button data-f="applied" title="applied to at least one role, or ticked Applied">Applied<span class="tabcount"></span></button>
+      <button data-f="outreach" title="outreach started: finding contacts, drafting, sent, or replied">Outreach<span class="tabcount"></span></button>
+      <button data-f="followup" title="applied, but outreach hasn't started">To reach out<span class="tabcount"></span></button>
       <button data-f="issues">Issues</button>
       <button data-f="dead">Dead</button>
       <button data-f="hidden">Hidden</button>
@@ -535,7 +684,7 @@
 </div>
 
 <script>
-let POSTINGS = [], COMPANIES = [], PEOPLE = [];
+let POSTINGS = [], COMPANIES = [], PEOPLE = [], COMP_BY_ID = new Map();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => (s ?? "").toString().replace(/[&<>"]/g,
   (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -548,7 +697,7 @@ function showTab(name) {
   }
 }
 $("#tab-postings").onclick = () => showTab("postings");
-$("#tab-companies").onclick = () => showTab("companies");
+$("#tab-companies").onclick = () => { showTab("companies"); renderCompanies(); };
 $("#tab-people").onclick = () => showTab("people");
 $("#tab-issues").onclick = () => showTab("issues");
 $("#tab-analysis").onclick = () => { showTab("analysis"); loadAnalysis(); };
@@ -861,7 +1010,7 @@ function postingRow(p) {
       <span class="avatar">${esc(initial)}</span>
       <div>
         <div class="company-link" onclick="gotoCompany(${p.company_id})">${esc(p.company)}</div>
-        <div class="meta">first seen ${esc((p.first_seen || "").slice(0, 10))}${p.closed ? ` · taken down ~${esc((p.last_seen || "").slice(0, 10))}` : ""}</div>
+        <div class="meta">${outreachMark(p.company_id)}first seen ${esc((p.first_seen || "").slice(0, 10))}${p.closed ? ` · taken down ~${esc((p.last_seen || "").slice(0, 10))}` : ""}</div>
       </div>
       <div class="right">
         ${p.is_new ? '<span class="badge new">New</span>' : ""}
@@ -893,6 +1042,14 @@ function postingRow(p) {
       <a class="apply" href="${esc(p.url)}" target="_blank" rel="noopener">Open posting</a>
     </div>
   </div>`;
+}
+
+// tiny "you've been in touch" marker on posting cards, so outreach shows up in the feed too
+function outreachMark(cid) {
+  const c = COMP_BY_ID.get(cid);
+  if (!c || !outreachActive(c)) return "";
+  return `<span class="outreach-mark pill ${orClass(c.outreach_status)}" style="padding:0 6px"
+    title="outreach to this company: ${esc(c.outreach_status)}">${esc(c.outreach_status)}</span> · `;
 }
 
 function eligBadges(p) {
@@ -1083,23 +1240,209 @@ function gotoCompany(id) {
   showTab("companies");
   $("#c-search").value = "";
   renderCompanies();
+  if (!OPEN_COMP.has(id)) toggleComp(id);
   const el = document.getElementById("comp-" + id);
-  if (el) { el.classList.add("open"); el.scrollIntoView({ behavior: "smooth", block: "center" }); }
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 // ---- companies ----
 let cFilter = "all";
 $("#c-filterseg").addEventListener("click", (e) => {
-  if (!e.target.dataset.f) return;
-  cFilter = e.target.dataset.f;
-  [...$("#c-filterseg").children].forEach((b) => b.classList.toggle("active", b === e.target));
+  const btn = e.target.closest("button");
+  if (!btn || !btn.dataset.f) return;
+  cFilter = btn.dataset.f;
+  [...$("#c-filterseg").children].forEach((b) => b.classList.toggle("active", b === btn));
   renderCompanies();
 });
-["c-search", "c-sort"].forEach((id) => $("#" + id).addEventListener("input", renderCompanies));
+const OPEN_COMP = new Set();   // expanded company cards, kept across re-renders
+const DETAIL = new Map();     // company id -> {company, postings, contacts} fresh from the DB
+const EDITING = new Map();    // company id -> contact id being edited, or "new"
+
+const APPLIED_STAGES = ["applied", "interviewing", "rejected", "offer"];
+const OUTREACH = ["not started", "finding contacts", "drafting", "reached out", "following up", "replied", "no response"];
+const CONTACT_ST = ["to contact", "finding email", "drafted", "messaged", "followed up", "replied", "no reply"];
+const OR_CLASS = {
+  "finding contacts": "or-prep", "drafting": "or-prep", "reached out": "or-sent", "following up": "or-sent",
+  "replied": "or-done", "no response": "or-cold",
+  "finding email": "or-prep", "drafted": "or-prep", "messaged": "or-sent", "followed up": "or-sent", "no reply": "or-cold",
+};
+const orClass = (st) => OR_CLASS[st] || "or-none";
+const outreachActive = (c) => c.outreach_status && c.outreach_status !== "not started";
+const fmtDate = (d) => d ? new Date(d.slice(0, 10) + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+
+// A company counts as Applied when any of its postings is at applied or beyond, or
+// when you ticked "applied outside the board" (an application the scraper never saw).
+function appliedRoles(c) {
+  return POSTINGS.filter((p) => p.company_id === c.id && APPLIED_STAGES.includes(p.user_status));
+}
+const isApplied = (c) => !!c.applied_at || appliedRoles(c).length > 0;
+
+function toggleComp(id) {
+  if (OPEN_COMP.has(id)) { OPEN_COMP.delete(id); paintComp(id); return; }
+  OPEN_COMP.add(id);
+  paintComp(id);
+  loadDetail(id);
+}
+async function loadDetail(id) {
+  try {
+    const d = await getJSON(`/api/companies/${id}/detail`);
+    DETAIL.set(id, d);
+    // the DB is the source of truth: fold what it says back into the board-wide lists
+    const c = COMP_BY_ID.get(id);
+    if (c) {
+      Object.assign(c, { applied_at: d.company.applied_at, outreach_status: d.company.outreach_status,
+                         outreach_notes: d.company.outreach_notes, outreach_at: d.company.outreach_at });
+      c.recruiters = d.contacts;
+    }
+    for (const dp of d.postings) {
+      const p = POSTINGS.find((x) => x.id === dp.id);
+      if (p) { p.user_status = dp.user_status; p.status_at = dp.status_at; }
+    }
+  } catch (e) {
+    const prev = DETAIL.get(id);
+    DETAIL.set(id, { ...(prev && !prev.error ? prev : {}), error: String(e.message || e) });
+  }
+  paintComp(id);
+}
+function paintComp(id) {  // redraw one company card in place
+  const el = document.getElementById("comp-" + id), c = COMP_BY_ID.get(id);
+  if (el && c) el.outerHTML = companyRow(c);
+}
+async function postJSON(url, body, method = "POST") {
+  const r = await fetch(url, { method, headers: { "Content-Type": "application/json" },
+                               body: body ? JSON.stringify(body) : undefined });
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try { msg = (await r.json()).detail || msg; } catch {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+const today = () => new Date().toISOString().slice(0, 10);
+
+// ---- role status from inside a company card ----
+function companyStatus(cid, pid, status) {
+  const dp = DETAIL.get(cid)?.postings?.find((x) => x.id === pid);
+  if (dp) { dp.user_status = status; dp.status_at = today(); }
+  const p = POSTINGS.find((x) => x.id === pid);
+  if (p) p.status_at = today();
+  setStatus(pid, status);           // saves, and updates the Postings tab
+  paintComp(cid); renderCompanyCounts();
+}
+async function setApplyOffboard(cid, on) {
+  const c = COMP_BY_ID.get(cid), prev = c.applied_at;
+  c.applied_at = on ? today() : null;
+  paintComp(cid); renderCompanyCounts();
+  try { await postJSON(`/api/companies/${cid}/outreach`, { applied_offboard: on }); }
+  catch (e) { alert("Couldn't save: " + e.message); c.applied_at = prev; paintComp(cid); }
+}
+
+// ---- company outreach stage + notes ----
+async function setOutreachStage(cid, status) {
+  const c = COMP_BY_ID.get(cid), prev = [c.outreach_status, c.outreach_at];
+  c.outreach_status = status; c.outreach_at = today();
+  paintComp(cid); renderCompanyCounts(); renderPostings();
+  try { await postJSON(`/api/companies/${cid}/outreach`, { status }); }
+  catch (e) { alert("Couldn't save: " + e.message); [c.outreach_status, c.outreach_at] = prev; paintComp(cid); }
+}
+// Moving a contact along nudges the company stage forward (never back).
+function bumpStage(cid, stage) {
+  const c = COMP_BY_ID.get(cid);
+  const cur = OUTREACH.indexOf(c.outreach_status || "not started");
+  if (OUTREACH.indexOf(stage) > cur && c.outreach_status !== "replied") setOutreachStage(cid, stage);
+}
+const CONTACT_BUMP = { "finding email": "finding contacts", "drafted": "drafting", "messaged": "reached out",
+                       "followed up": "following up", "replied": "replied" };
+
+// notes autosave: debounced per textarea, no re-render so the cursor stays put
+const SAVE_TIMERS = new Map();
+function autosave(el, key, save) {
+  const tag = el.parentElement.querySelector(".saved");
+  tag.textContent = "…";
+  clearTimeout(SAVE_TIMERS.get(key));
+  SAVE_TIMERS.set(key, setTimeout(async () => {
+    try { await save(el.value); tag.textContent = "saved"; }
+    catch (e) { tag.textContent = "not saved — " + e.message; }
+  }, 600));
+}
+function saveCompanyNotes(el, cid) {
+  autosave(el, "c" + cid, (v) => { COMP_BY_ID.get(cid).outreach_notes = v;
+    return postJSON(`/api/companies/${cid}/outreach`, { notes: v }); });
+}
+function saveContactNotes(el, cid, rid) {
+  autosave(el, "r" + rid, (v) => {
+    const r = COMP_BY_ID.get(cid).recruiters.find((x) => x.id === rid); if (r) r.notes = v;
+    return postJSON(`/api/recruiters/${rid}`, { notes: v });
+  });
+}
+
+// ---- contacts ----
+function contactsOf(cid) { return COMP_BY_ID.get(cid).recruiters; }
+async function setContactStatus(cid, rid, status) {
+  const r = contactsOf(cid).find((x) => x.id === rid), prev = [r.status, r.status_at];
+  r.status = status; r.status_at = today();
+  paintComp(cid);
+  try {
+    await postJSON(`/api/recruiters/${rid}`, { status });
+    if (CONTACT_BUMP[status]) bumpStage(cid, CONTACT_BUMP[status]);
+  } catch (e) { alert("Couldn't save: " + e.message); [r.status, r.status_at] = prev; paintComp(cid); }
+}
+function editContact(cid, rid) { EDITING.set(cid, rid); paintComp(cid);
+  setTimeout(() => document.querySelector(`#ct-${cid} [name=name]`)?.focus(), 0); }
+function cancelContact(cid) { EDITING.delete(cid); paintComp(cid); }
+async function saveContact(cid) {
+  const form = document.getElementById("ct-" + cid);
+  const val = (n) => form.querySelector(`[name=${n}]`).value.trim();
+  const rid = EDITING.get(cid);
+  const body = { name: val("name"), title: val("title"), email: val("email"), linkedin_url: val("linkedin_url") };
+  if (!body.name) { form.querySelector("[name=name]").focus(); return; }
+  try {
+    if (rid === "new") {
+      body.notes = val("notes");
+      body.status = body.email ? "to contact" : "finding email";
+      const r = await postJSON(`/api/companies/${cid}/contacts`, body);
+      contactsOf(cid).push(r);
+      bumpStage(cid, "finding contacts");
+    } else {
+      const r = contactsOf(cid).find((x) => x.id === rid);
+      // only send what changed, so an untouched Clay-verified email keeps its status
+      const diff = Object.fromEntries(Object.entries(body).filter(([k, v]) => v !== (r[k] || "")));
+      if (Object.keys(diff).length) Object.assign(r, await postJSON(`/api/recruiters/${rid}`, diff));
+    }
+    EDITING.delete(cid); paintComp(cid); renderCompanyCounts();
+  } catch (e) { alert("Couldn't save contact: " + e.message); }
+}
+async function deleteContact(cid, rid) {
+  const r = contactsOf(cid).find((x) => x.id === rid);
+  if (!r || !confirm(`Remove ${r.name} from ${COMP_BY_ID.get(cid).name}'s contacts? This deletes them and their notes.`)) return;
+  try {
+    await postJSON(`/api/recruiters/${rid}`, null, "DELETE");
+    COMP_BY_ID.get(cid).recruiters = contactsOf(cid).filter((x) => x.id !== rid);
+    paintComp(cid);
+  } catch (e) { alert("Couldn't remove: " + e.message); }
+}
+
+// ---- list ----
+function renderCompanyCounts() {
+  const live = COMPANIES.filter((c) => c.discovery_status !== "dead");
+  const counts = {
+    applied: live.filter(isApplied).length,
+    outreach: live.filter(outreachActive).length,
+    followup: live.filter((c) => isApplied(c) && !outreachActive(c)).length,
+  };
+  for (const b of $("#c-filterseg").children) {
+    const tc = b.querySelector(".tabcount");
+    if (tc) tc.textContent = counts[b.dataset.f] || "";
+  }
+}
 
 function renderCompanies() {
   const q = $("#c-search").value.toLowerCase();
+  renderCompanyCounts();
   let rows = COMPANIES.filter((c) => {
+    if (cFilter === "applied" && !isApplied(c)) return false;
+    if (cFilter === "outreach" && !outreachActive(c)) return false;
+    if (cFilter === "followup" && !(isApplied(c) && !outreachActive(c))) return false;
     if (q && !c.name.toLowerCase().includes(q)) return false;
     // dead companies are tucked away everywhere except their own tab, same as
     // the Issues tab does -- otherwise they'd clutter every other view forever.
@@ -1116,52 +1459,309 @@ function renderCompanies() {
     ? b.open_count - a.open_count || a.name.localeCompare(b.name)
     : a.name.localeCompare(b.name));
   $("#c-list").innerHTML = rows.length ? rows.map(companyRow).join("") :
-    "<p class='empty'>No companies yet — run <code>make ingest</code> after dropping your exports into inputs/.</p>";
+    (COMPANIES.length ? "<p class='empty'>No companies match this filter.</p>"
+      : "<p class='empty'>No companies yet — run <code>make ingest</code> after dropping your exports into inputs/.</p>");
+}
+
+// ---- card pieces ----
+// ---- compact company card -------------------------------------------------
+const TAB = new Map();          // company id -> "roles" | "applied" | "contacts" | "notes"
+const SHOW_IRR = new Set();     // companies whose irrelevant roles are shown
+const OPEN_PERSON = new Set();  // contact ids whose notes row is open
+
+const TYPE_OF = { electrical: "electrical", hardware: "hardware", research: "research", robotics: "robotics", "swe/ai": "software" };
+const TYPE_ORDER = ["electrical", "hardware", "robotics", "test", "research", "software", "mech/mfg", "design", "business", "other"];
+const TEST_RE = /\b(test|testing|validation|verification|quality|qa|reliability)\b/i;
+const MECH_RE = /mechanical|\bmech\b|thermal|manufactur|materials|industrial|naval|structur|civil|chemical|process eng|production|nuclear|energy eng|vehicle eng|nvh|noise vibration|packaging eng|technician/i;
+const DESIGN_RE = /design studio|designer|\bux\b|\bui\b|visuali[sz]ation|cmf design|photograph|video|modeling, design|interior|exterior/i;
+const BIZ_RE = /operations|program manag|product manag|analyst|financ|accounting|marketing|sales|policy|talent|recruit|logistics|supply chain|business|legal|people|\bhr\b|procurement|strateg|communications|merchandis|localization|instructional|account|consult|customer|partnerships|affairs|change management|professional services|analytics/i;
+const SW_EXTRA_RE = /inference|kernel|\bml\b|mobile|\bapps?\b|penetration|security/i;
+const HW_EXTRA_RE = /photonic|optic|laser|electromagnetic|\bemc\b|\bgpu\b|advanced packaging|\bic\b|integrated circuit|semiconductor|wafer|nand|dram|photomask|\bcell eng|battery|\bpower\b/i;
+// Display type for the Roles tab, read from the title first (the team name only
+// breaks the tie when the title says nothing -- "Mech / Thermal Intern" on a
+// software team is still mech). EE / hardware / robotics / research win outright;
+// test & QA come before software so "Software QA Intern" reads as test.
+function roleType(p) {
+  const title = p.title || "";
+  const t = TYPE_OF[scoreRole({ title })[1]];
+  if (t && t !== "software") return t;
+  if (HW_EXTRA_RE.test(title)) return "hardware";
+  if (TEST_RE.test(title)) return "test";
+  if (t || SW_EXTRA_RE.test(title)) return "software";
+  if (DESIGN_RE.test(title)) return "design";
+  if (BIZ_RE.test(title)) return "business";
+  if (MECH_RE.test(title)) return "mech/mfg";
+  return TYPE_OF[scoreRole({ title: "", department: p.department })[1]] || "other";
+}
+function typeMix(posts) {  // [[type, n], ...] best-first by count
+  const n = {};
+  posts.forEach((p) => { const t = roleType(p); n[t] = (n[t] || 0) + 1; });
+  return Object.entries(n).sort((a, b) => b[1] - a[1] || TYPE_ORDER.indexOf(a[0]) - TYPE_ORDER.indexOf(b[0]));
+}
+// "Atlanta, Georgia, United States; Boston, …" -> "Atlanta +7"
+function shortLoc(loc) {
+  if (!loc) return "";
+  const parts = loc.split(/\s*(?:;|•|\||\n)\s*/).filter(Boolean);
+  if (parts.length > 1) return `${parts[0].split(",")[0]} +${parts.length - 1}`;
+  return parts[0].replace(/,\s*(United States|USA|US)$/i, "");
+}
+function flags(p) {
+  const ev = esc(p.export_evidence || "");
+  const out = [];
+  if (p.export_status === "us-person-required") out.push(`<span class="flag gate" title="${ev}">US only</span>`);
+  else if (p.export_status === "clearance-required") out.push(`<span class="flag clr" title="${ev}">clearance</span>`);
+  else if (p.export_status === "export-mentioned" || p.export_status === "export-license-possible")
+    out.push(`<span class="flag exp" title="${ev}">export</span>`);
+  if (p.visa_sponsorship === "no-sponsorship") out.push(`<span class="flag nospon" title="states visa sponsorship is not available">no visa</span>`);
+  return out.join("");
+}
+function statusSelect(cid, p) {
+  return `<select class="status-sel st-${p.user_status.replace(/ /g, "-")}" onchange="companyStatus(${cid}, ${p.id}, this.value)"
+      title="set to applied (or beyond) to file it under Applied">
+      ${STATUSES.map((s) => `<option ${s === p.user_status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+}
+// ---- hand-added roles (found on another board, a referral, …) ----
+const ADDING_ROLE = new Map();  // company id -> default status for the add-role form
+function openRoleForm(cid, status) { ADDING_ROLE.set(cid, status); paintComp(cid);
+  setTimeout(() => document.querySelector(`#rf-${cid} [name=title]`)?.focus(), 0); }
+function closeRoleForm(cid) { ADDING_ROLE.delete(cid); paintComp(cid); }
+function roleForm(cid) {
+  const st = ADDING_ROLE.get(cid);
+  return `<form class="ct-form role-form" id="rf-${cid}" onsubmit="event.preventDefault(); saveRole(${cid})">
+    <input name="title" placeholder="Role title *" required>
+    <input name="url" placeholder="Link to the posting (optional)">
+    <input name="location" placeholder="Location (optional)">
+    <select name="status" class="status-sel">${STATUSES.filter((s) => s !== "new").map((s) =>
+      `<option ${s === st ? "selected" : ""}>${s}</option>`).join("")}</select>
+    <div class="acts">
+      <button type="button" class="iconbtn" onclick="closeRoleForm(${cid})">Cancel</button>
+      <button type="submit" class="iconbtn primary">Add role</button>
+    </div></form>`;
+}
+async function saveRole(cid) {
+  const f = document.getElementById("rf-" + cid), val = (n) => f.querySelector(`[name=${n}]`).value.trim();
+  const body = { title: val("title"), url: val("url"), location: val("location"), status: val("status") };
+  if (!body.title) return;
+  try {
+    const p = await postJSON(`/api/companies/${cid}/postings`, body);
+    const c = COMP_BY_ID.get(cid);
+    const row = { ...p, manual: 1, company: c.name, company_id: cid };
+    row.buckets = bucketize(row.location); scorePosting(row);
+    POSTINGS.push(row);
+    DETAIL.get(cid)?.postings?.unshift(p);
+    if (!p.closed) c.open_count++;
+    ADDING_ROLE.delete(cid);
+    TAB.set(cid, APPLIED_STAGES.includes(p.user_status) ? "applied" : "roles");
+    paintComp(cid); renderCompanyCounts(); renderPostings(); renderFacets();
+  } catch (e) { alert("Couldn't add role: " + e.message); }
+}
+async function deleteRole(cid, pid) {
+  const p = POSTINGS.find((x) => x.id === pid) || DETAIL.get(cid)?.postings?.find((x) => x.id === pid);
+  if (!p || !confirm(`Remove "${p.title}"? It was added by hand, so it won't come back.`)) return;
+  try {
+    await postJSON(`/api/postings/${pid}`, null, "DELETE");
+    const i = POSTINGS.findIndex((x) => x.id === pid); if (i >= 0) POSTINGS.splice(i, 1);
+    const d = DETAIL.get(cid); if (d?.postings) d.postings = d.postings.filter((x) => x.id !== pid);
+    const c = COMP_BY_ID.get(cid); if (!p.closed) c.open_count--;
+    paintComp(cid); renderCompanyCounts(); renderPostings(); renderFacets();
+  } catch (e) { alert("Couldn't remove: " + e.message); }
+}
+const isManual = (p) => !!p.manual || String(p.posting_key || "").startsWith("manual:");
+function manualTag(cid, p) {
+  if (!isManual(p)) return "";
+  return `<span class="flag added" title="added by hand">added</span>
+    <button class="lnk danger" title="remove this hand-added role" onclick="deleteRole(${cid}, ${p.id})">✕</button>`;
+}
+
+function setTab(cid, tab) { TAB.set(cid, tab); paintComp(cid); }
+function toggleIrr(cid) { SHOW_IRR.has(cid) ? SHOW_IRR.delete(cid) : SHOW_IRR.add(cid); paintComp(cid); }
+function togglePerson(cid, rid, e) {
+  if (e && e.target.closest("a, button, select, input")) return;
+  OPEN_PERSON.has(rid) ? OPEN_PERSON.delete(rid) : OPEN_PERSON.add(rid);
+  paintComp(cid);
+}
+
+function roleLine(cid, p) {
+  const t = roleType(p);
+  return `<div class="li${p.user_status === "irrelevant" ? " dim" : ""}${p.closed ? " gone" : ""}">
+    <span class="rt rt-${t.replace("/", "-")}">${t}</span>
+    ${p.is_new ? '<span class="newdot" title="new in the latest check"></span>' : ""}
+    <a class="t" href="${esc(p.url)}" target="_blank" rel="noopener" title="${esc(p.title)}${p.department ? " — " + esc(p.department) : ""}">${esc(p.title)}</a>
+    ${flags(p)}${manualTag(cid, p)}
+    <span class="loc" title="${esc(p.location || "")}">${esc(shortLoc(p.location))}</span>
+    ${statusSelect(cid, p)}
+  </div>`;
+}
+function appliedLine(cid, p) {
+  const t = roleType(p);
+  return `<div class="li${p.closed ? " gone" : ""}">
+    <span class="rt rt-${t.replace("/", "-")}">${t}</span>
+    <a class="t" href="${esc(p.url)}" target="_blank" rel="noopener" title="${esc(p.title)}">${esc(p.title)}</a>
+    ${p.closed ? `<span class="flag exp" title="the company took this posting down ~${esc((p.last_seen || "").slice(0, 10))}">taken down</span>` : ""}
+    <span class="loc" title="${esc(p.location || "")}">${esc(shortLoc(p.location))}</span>
+    ${manualTag(cid, p)}
+    <span class="when">${p.status_at ? fmtDate(p.status_at) : ""}</span>
+    ${statusSelect(cid, p)}
+  </div>`;
+}
+function personLine(cid, r) {
+  if (EDITING.get(cid) === r.id) return contactForm(cid, r);
+  const ini = r.name.split(/\s+/).filter((w) => /^\p{L}/u.test(w)).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const st = r.status || "to contact";
+  const isX = /x\.com|twitter\.com/.test(r.linkedin_url || "");
+  const open = OPEN_PERSON.has(r.id);
+  return `<div class="li person" onclick="togglePerson(${cid}, ${r.id}, event)" title="click for notes">
+      <span class="ini">${esc(ini)}</span>
+      <span class="t">${esc(r.name)}${r.title ? `<span class="ptitle">${esc(r.title)}</span>` : ""}</span>
+      ${r.notes && !open ? '<span class="hasnote" title="has notes">✎</span>' : ""}
+      ${r.email ? `<span class="mail" title="${esc(r.email)}${r.email_status === "unverified" ? " (unverified)" : ""}">${esc(r.email)}${r.email_status === "unverified" ? " ?" : ""}</span>
+        <button class="icon" onclick="navigator.clipboard.writeText('${esc(r.email)}');this.textContent='✓';setTimeout(()=>this.textContent='copy',900)">copy</button>`
+        : '<span class="mail missing">no email</span>'}
+      ${r.linkedin_url ? `<a class="icon" href="${esc(r.linkedin_url)}" target="_blank" rel="noopener">${isX ? "X" : "in"}</a>` : ""}
+      <select class="cst ${orClass(st)}" onchange="setContactStatus(${cid}, ${r.id}, this.value)" title="where you are with this person">
+        ${CONTACT_ST.map((s) => `<option ${s === st ? "selected" : ""}>${s}</option>`).join("")}</select>
+    </div>
+    ${open ? `<div class="person-x">
+      <div class="note-box"><textarea placeholder="Notes — where you found them, what you sent, when to follow up…"
+        oninput="saveContactNotes(this, ${cid}, ${r.id})">${esc(r.notes || "")}</textarea><span class="saved"></span></div>
+      <div class="row2">${r.status_at ? `<span>${esc(st)} ${fmtDate(r.status_at)}</span>` : ""}
+        ${r.source && r.source !== "manual" ? `<span>via ${esc(r.source)}</span>` : ""}
+        <button class="lnk" onclick="editContact(${cid}, ${r.id})">edit</button>
+        <button class="lnk danger" onclick="deleteContact(${cid}, ${r.id})">remove</button></div>
+    </div>` : ""}`;
+}
+function contactForm(cid, r) {
+  const v = (k) => esc((r && r[k]) || "");
+  return `<form class="ct-form" id="ct-${cid}" onsubmit="event.preventDefault(); saveContact(${cid})">
+    <input name="name" placeholder="Name *" value="${v("name")}" required>
+    <input name="title" placeholder="Title (e.g. University Recruiter)" value="${v("title")}">
+    <input name="email" type="email" placeholder="Email (if you've found it)" value="${v("email")}">
+    <input name="linkedin_url" placeholder="LinkedIn / X URL" value="${v("linkedin_url")}">
+    ${r ? "" : '<textarea name="notes" placeholder="Notes — how you found them, email guesses to try…"></textarea>'}
+    <div class="acts">
+      <button type="button" class="iconbtn" onclick="cancelContact(${cid})">Cancel</button>
+      <button type="submit" class="iconbtn primary">${r ? "Save" : "Add contact"}</button>
+    </div>
+  </form>`;
+}
+
+function companyBody(c) {
+  // Until the fresh read lands, draw from what the board loaded at startup (the
+  // same DB, a few minutes older) so the card opens instantly; Turso round trips
+  // can take seconds.
+  const d = DETAIL.get(c.id);
+  const posts = d && d.postings ? d.postings : POSTINGS.filter((p) => p.company_id === c.id);
+  posts.forEach(scorePosting);
+  const mine = posts.filter((p) => APPLIED_STAGES.includes(p.user_status))
+    .sort((a, b) => (b.status_at || "").localeCompare(a.status_at || ""));
+  const open = posts.filter((p) => !p.closed && !APPLIED_STAGES.includes(p.user_status));
+  const relevant = open.filter((p) => p.user_status !== "irrelevant");
+  const irr = open.filter((p) => p.user_status === "irrelevant");
+  const people = c.recruiters;
+  const tab = TAB.get(c.id) || (mine.length || c.applied_at ? "applied" : relevant.length ? "roles" : "contacts");
+  const st = c.outreach_status || "not started";
+  const editing = EDITING.get(c.id);
+
+  const tabBtn = (k, label, n) => `<button class="${tab === k ? "on" : ""}" onclick="setTab(${c.id}, '${k}')">${label}${n ? `<span class="n">${n}</span>` : ""}</button>`;
+  let pane = "";
+  if (tab === "roles") {
+    const rank = (p) => ({ "apply later": 0, "new": 1, "backlog": 2 }[p.user_status] ?? 1);
+    const list = relevant.slice().sort((a, b) => rank(a) - rank(b) || b.score - a.score);
+    pane = `      <div class="list">${list.length ? list.map((p) => roleLine(c.id, p)).join("") : `<div class="none">No open internship postings right now.</div>`}
+        ${irr.length ? `<div class="li-more"><button class="lnk" onclick="toggleIrr(${c.id})">${SHOW_IRR.has(c.id) ? "hide" : "show"} ${irr.length} marked irrelevant</button></div>
+          ${SHOW_IRR.has(c.id) ? irr.map((p) => roleLine(c.id, p)).join("") : ""}` : ""}
+        ${ADDING_ROLE.has(c.id) ? roleForm(c.id) : ""}
+      </div>
+      ${ADDING_ROLE.has(c.id) ? "" : `<div class="pane-foot"><button class="iconbtn" onclick="openRoleForm(${c.id}, 'apply later')">＋ Add role</button>
+        <span>found one on another board? add it here</span></div>`}`;
+  } else if (tab === "applied") {
+    pane = `<div class="list">${mine.length ? mine.map((p) => appliedLine(c.id, p)).join("")
+        : `<div class="none">Nothing applied yet — set a role's status to <b>applied</b> in the Roles tab, or add one below.</div>`}
+        ${ADDING_ROLE.has(c.id) ? roleForm(c.id) : ""}</div>
+      <div class="pane-foot">${ADDING_ROLE.has(c.id) ? "" : `<button class="iconbtn" onclick="openRoleForm(${c.id}, 'applied')">＋ Add role</button>`}<label class="offboard" title="for an application the board has no posting for">
+        <input type="checkbox" ${c.applied_at ? "checked" : ""} onchange="setApplyOffboard(${c.id}, this.checked)">
+        applied outside the board${c.applied_at ? ` (${fmtDate(c.applied_at)})` : ""}</label></div>`;
+  } else if (tab === "contacts") {
+    pane = `<div class="list">${people.map((r) => personLine(c.id, r)).join("")}
+        ${editing === "new" ? contactForm(c.id, null) : ""}
+        ${!people.length && editing !== "new" ? `<div class="none">No contacts yet — a name is enough, add the email when you find it.</div>` : ""}
+      </div>
+      ${editing === "new" ? "" : `<div class="pane-foot"><button class="iconbtn" onclick="editContact(${c.id}, 'new')">＋ Add contact</button>
+        <span>click a person for notes</span></div>`}`;
+  } else {
+    pane = `<div class="note-box"><textarea placeholder="Notes — who you're trying to reach, email formats to guess, what you sent and when…"
+      oninput="saveCompanyNotes(this, ${c.id})">${esc(c.outreach_notes || "")}</textarea><span class="saved"></span></div>`;
+  }
+
+  const err = String(c.last_check_status || "").startsWith("error");
+  const sync = !d ? `<span>refreshing…</span>`
+    : d.error ? `<span class="err">couldn't refresh (${esc(d.error)}) · <a href="javascript:void 0" onclick="loadDetail(${c.id})">retry</a></span>` : "";
+  return `
+    <div class="ctabs">
+      ${tabBtn("applied", "Applied", mine.length ? `${mine.length}/${mine.length + relevant.length + irr.length}` : 0)}
+      ${tabBtn("roles", "Roles", relevant.length)}
+      ${tabBtn("contacts", "Contacts", people.length)}
+      ${tabBtn("notes", "Notes" + (c.outreach_notes ? " ✎" : ""), null)}
+      <span class="or">Outreach
+        <select class="or-sel ${orClass(st)}" onchange="setOutreachStage(${c.id}, this.value)" title="${c.outreach_at ? esc(st) + " since " + esc(c.outreach_at) : ""}">
+          ${OUTREACH.map((s) => `<option ${s === st ? "selected" : ""}>${s}</option>`).join("")}</select></span>
+    </div>
+    <div class="pane">${pane}</div>
+    ${c.audit_note ? `<p class="audit-note" style="margin:0 12px 8px">Site links to a board not in this feed: ${esc(c.audit_note)}</p>` : ""}
+    <div class="cfoot2">
+      ${c.website ? `<a href="${esc(c.website.startsWith("http") ? c.website : "https://" + c.website)}" target="_blank" rel="noopener">website ↗</a>` : ""}
+      ${c.careers_url ? `<a href="${esc(c.careers_url)}" target="_blank" rel="noopener">careers ↗</a>` : ""}
+      ${c.ats_type ? `<span class="ats">${esc(c.ats_type)}</span>` : ""}
+      ${c.source_detail ? `<span title="where this company came from">via ${esc(c.source_detail)}</span>` : ""}
+      <span class="${err ? "err" : ""}">${c.last_checked ? `checked ${esc(c.last_checked.slice(0, 10))}${err ? " ⚠︎ error" : ""}` : esc(c.discovery_status)}</span>
+      ${sync}
+      <span class="spacer"></span>
+      <button class="lnk" onclick="toggleCompanyHide(${esc(JSON.stringify(c.name))})">${OFF.comp.has(c.name) ? "unhide" : "hide from feed"}</button>
+      <button class="lnk danger" onclick="setCompanyDead(${c.id}, ${c.discovery_status === "dead" ? "false" : "true"})">${c.discovery_status === "dead" ? "revive" : "mark dead"}</button>
+    </div>`;
 }
 
 function companyRow(c) {
-  const err = String(c.last_check_status || "").startsWith("error");
   const dead = c.discovery_status === "dead";
   const hidden = OFF.comp.has(c.name);
-  const checked = c.last_checked
-    ? `checked ${esc(c.last_checked.slice(0, 10))}${err ? " ⚠︎ error" : ""}`
-    : (c.discovery_status === "ok" ? "not checked yet" : esc(c.discovery_status));
-  const recs = c.recruiters.length
-    ? c.recruiters.map((r) => `<div class="rec">
-        <span>${esc(r.name)}</span><span class="count">— ${esc(r.title || "")}</span>
-        ${r.email ? `<span class="email">${esc(r.email)}</span>
-          <button class="copy" onclick="navigator.clipboard.writeText('${esc(r.email)}');this.textContent='copied';setTimeout(()=>this.textContent='copy',900)">copy</button>` : ""}
-        ${r.email_status === "unverified" ? '<span class="unverified">unverified</span>' : ""}
-        ${r.linkedin_url ? `<a href="${esc(r.linkedin_url)}" target="_blank" rel="noopener">LinkedIn</a>` : ""}
-      </div>`).join("")
-    : "<p class='empty'>No recruiter contacts yet.</p>";
-  const posts = POSTINGS.filter((p) => p.company_id === c.id && !p.closed);
-  const postList = posts.length
-    ? posts.map((p) => `<div class="rec">${p.is_new ? '<span class="badge new">NEW</span>' : ""}
-        <a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>
-        ${p.location ? `<span class="count">${esc(p.location)}</span>` : ""}</div>`).join("")
-    : "<p class='empty'>No open internship postings.</p>";
-  return `<div class="row" id="comp-${c.id}">
-    <div class="comp-head" onclick="this.parentElement.classList.toggle('open')">
-      <span class="caret">▸</span>
-      <span class="comp-name">${esc(c.name)}</span>
-      ${c.ats_type ? `<span class="ats">${esc(c.ats_type)}</span>` : ""}
-      <span class="count ${posts.length ? "has" : ""}">${posts.length} open internship${posts.length === 1 ? "" : "s"}</span>
-      ${c.audit_note ? '<span class="badge audit" title="site links to a job board not in this company\'s feed">unregistered board</span>' : ""}
-      ${dead ? '<span class="badge dead" title="postings closed, excluded from scraping">dead</span>' : ""}
-      ${hidden ? '<span class="badge hidden" title="postings hidden from the Postings tab (this browser only)">hidden</span>' : ""}
-      <span class="checked ${err ? "err" : ""}">${checked}</span>
-      <span class="mute-btn" title="${hidden ? "show this company's postings again" : "hide this company's postings from the Postings tab"}"
-            onclick="event.stopPropagation(); toggleCompanyHide(${esc(JSON.stringify(c.name))})">${hidden ? "unhide" : "hide"}</span>
-      <span class="mute-btn" title="${dead ? "resume tracking this company" : "stop tracking this company and close its open postings"}"
-            onclick="event.stopPropagation(); setCompanyDead(${c.id}, ${dead ? "false" : "true"})">${dead ? "revive" : "mark dead"}</span>
+  const initial = (c.name || "?").trim()[0].toUpperCase();
+  // what they hire for, at a glance: role mix of the open, not-irrelevant postings
+  const live = POSTINGS.filter((p) => p.company_id === c.id && !p.closed && p.user_status !== "irrelevant");
+  const mix = typeMix(live).slice(0, 3).map(([t, n]) => `<b>${n}</b> ${t}`).join(" · ");
+
+  // applied X of Y: Y = every role you could have applied to (open now, or applied to
+  // before it was taken down); the pills before it say how far those applications got
+  const mineAll = appliedRoles(c);
+  const total = POSTINGS.filter((p) => p.company_id === c.id && (!p.closed || APPLIED_STAGES.includes(p.user_status))).length;
+  const byStage = {};
+  mineAll.forEach((p) => { byStage[p.user_status] = (byStage[p.user_status] || 0) + 1; });
+  const appPills = ["interviewing", "offer", "rejected"].filter((s) => byStage[s]).map((s) =>
+    `<span class="pill st-${s}"><span class="dot"></span>${s} <span class="n">${byStage[s]}</span></span>`);
+  const ratio = total || c.applied_at ? `<span class="ratio ${mineAll.length || c.applied_at ? "some" : ""}"
+      title="${mineAll.length} of ${total} roles applied to${c.applied_at ? " + an application outside the board" : ""}">
+      <span class="meter"><i style="width:${total ? Math.round(100 * mineAll.length / total) : 0}%"></i></span><span><b>${mineAll.length}</b>/${total} applied${c.applied_at ? "+" : ""}</span></span>` : "";
+  const st = c.outreach_status;
+  const orPill = outreachActive(c) ? `<span class="pill ${orClass(st)}" title="outreach"><span class="dot"></span>${esc(st)}</span>`
+    : (isApplied(c) ? `<span class="pill ghost" title="applied, outreach not started">no outreach</span>` : "");
+
+  return `<div class="row${OPEN_COMP.has(c.id) ? " open" : ""}" id="comp-${c.id}">
+    <div class="comp-head" onclick="toggleComp(${c.id})">
+      <div class="comp-id">
+        <span class="caret">▸</span>
+        <span class="avatar">${esc(initial)}</span>
+        <div style="min-width:0">
+          <div class="comp-name">${esc(c.name)}
+            ${dead ? '<span class="badge dead">dead</span>' : ""}${hidden ? ' <span class="badge hidden" title="hidden from the Postings tab">hidden</span>' : ""}
+            ${c.country ? `<span class="ccountry" title="${esc(c.hq || c.country)}">${esc(c.country)}</span>` : ""}</div>
+          ${c.description ? `<div class="cdesc">${esc(c.description)}</div>` : ""}
+          <div class="mix">${mix || "no open roles"}${c.recruiters.length ? ` · ${c.recruiters.length} contact${c.recruiters.length > 1 ? "s" : ""}` : ""}</div>
+        </div>
+      </div>
+      <div class="comp-right">
+        ${appPills.join("")}${orPill}${ratio}
+      </div>
     </div>
-    <div class="comp-body">
-      ${c.careers_url ? `<a href="${esc(c.careers_url)}" target="_blank" rel="noopener">careers page ↗</a>` : ""}
-      ${c.audit_note ? `<p class="audit-note">Site links to a board not in this feed: ${esc(c.audit_note)}</p>` : ""}
-      <h4>Recruiters</h4>${recs}
-      <h4>Open internships</h4>${postList}
-    </div>
+    <div class="comp-body">${OPEN_COMP.has(c.id) ? companyBody(c) : ""}</div>
   </div>`;
 }
 
@@ -1593,6 +2193,7 @@ async function boot() {
     return;
   }
   POSTINGS = p; COMPANIES = c; PEOPLE = pe;
+  COMP_BY_ID = new Map(COMPANIES.map((x) => [x.id, x]));
   POSTINGS.forEach((x) => { x.buckets = bucketize(x.location); scorePosting(x); });
   if (run && run.started) {
     $("#runinfo").textContent =

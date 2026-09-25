@@ -68,6 +68,7 @@ def postings():
         """SELECT p.id, p.title, p.url, p.location, p.department, p.tag, p.tag_hits,
                   p.loc_ok, p.first_seen, p.last_seen, p.is_new, p.closed, p.user_status,
                   p.export_status, p.export_regime, p.visa_sponsorship, p.export_evidence,
+                  p.status_at, p.posting_key LIKE 'manual:%' AS manual,
                   c.name AS company, c.id AS company_id
            FROM postings p JOIN companies c ON c.id = p.company_id
            ORDER BY p.is_new DESC, p.first_seen DESC, c.name COLLATE NOCASE"""
@@ -86,7 +87,8 @@ def companies():
         for r in conn.execute(
             """SELECT c.id, c.name, c.website, c.careers_url, c.ats_type,
                       c.discovery_status, c.last_checked, c.last_check_status, c.audit_note,
-                      c.feed_url, c.sources, c.manual_note,
+                      c.feed_url, c.sources, c.manual_note, c.applied_at, c.outreach_status, c.outreach_notes, c.outreach_at,
+                      c.country, c.hq, c.description, c.source_detail,
                       (SELECT COUNT(*) FROM postings p
                        WHERE p.company_id=c.id AND p.closed=0) AS open_count
                FROM companies c ORDER BY c.name COLLATE NOCASE"""
@@ -110,11 +112,212 @@ def set_status(posting_id: int, body: StatusUpdate):
         raise HTTPException(400, f"status must be one of {sorted(VALID_STATUSES)}")
     conn = db.connect()
     cur = conn.execute(
-        "UPDATE postings SET user_status=? WHERE id=?", (body.status, posting_id)
+        "UPDATE postings SET user_status=?, status_at=? WHERE id=?",
+        (body.status, run_check._now()[:10], posting_id)
     )
     conn.commit()
     if cur.rowcount == 0:
         raise HTTPException(404, "posting not found")
+    return {"ok": True}
+
+
+def _today() -> str:
+    return run_check._now()[:10]
+
+
+OUTREACH_STATUSES = ["not started", "finding contacts", "drafting", "reached out",
+                     "following up", "replied", "no response"]
+CONTACT_STATUSES = ["to contact", "finding email", "drafted", "messaged",
+                    "followed up", "replied", "no reply"]
+POSTING_COLS = ["id", "title", "url", "location", "department", "tag", "tag_hits", "loc_ok",
+                "first_seen", "last_seen", "is_new", "closed", "user_status", "status_at",
+                "export_status", "export_regime", "visa_sponsorship", "export_evidence", "posting_key"]
+CONTACT_COLS = ["id", "company_id", "name", "title", "email", "email_status", "linkedin_url",
+                "source", "status", "notes", "status_at"]
+
+
+def _json_rows(table: str, cols: list, order: str) -> str:
+    """Subquery that returns a table's rows for one company as a JSON array, so the
+    whole detail view comes back in a single round trip (Turso: ~2s per query)."""
+    obj = ", ".join(f"'{c}', {c}" for c in cols)
+    return (f"(SELECT json_group_array(json_object({obj})) FROM "
+            f"(SELECT * FROM {table} WHERE company_id=c.id ORDER BY {order}))")
+
+
+@app.get("/api/companies/{company_id}/detail")
+def company_detail(company_id: int):
+    """Everything the expanded company card shows, read fresh from the DB: every
+    posting ever seen there (open and taken down) with its status, plus contacts."""
+    import json
+    conn = db.connect()
+    row = conn.execute(
+        f"""SELECT c.*, {_json_rows("postings", POSTING_COLS, "closed, first_seen DESC")} AS _posts,
+                   {_json_rows("recruiters", CONTACT_COLS, "id")} AS _contacts
+            FROM companies c WHERE c.id=?""", (company_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "company not found")
+    c = dict(row)
+    posts, recs = json.loads(c.pop("_posts") or "[]"), json.loads(c.pop("_contacts") or "[]")
+    for p in posts:
+        p["user_status"] = LEGACY_STATUS.get(p["user_status"], p["user_status"])
+    return {"company": c, "postings": posts, "contacts": recs}
+
+
+class ManualRole(BaseModel):
+    title: str
+    url: Optional[str] = None
+    location: Optional[str] = None
+    status: str = "applied"
+
+
+@app.post("/api/companies/{company_id}/postings")
+def add_role(company_id: int, body: ManualRole):
+    """A role found somewhere the scraper doesn't look (another board, a referral).
+    Pinned so the scraper never closes it, and stamped as already notified so the
+    digest doesn't email you about a role you added yourself."""
+    import hashlib
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(400, "title required")
+    if body.status not in VALID_STATUSES:
+        raise HTTPException(400, f"status must be one of {sorted(VALID_STATUSES)}")
+    conn = db.connect()
+    if not conn.execute("SELECT 1 FROM companies WHERE id=?", (company_id,)).fetchone():
+        raise HTTPException(404, "company not found")
+    url = (body.url or "").strip() or None
+    key = "manual:" + hashlib.sha256((url or title.lower()).encode()).hexdigest()[:16]
+    if conn.execute("SELECT 1 FROM postings WHERE company_id=? AND posting_key=?",
+                    (company_id, key)).fetchone():
+        raise HTTPException(409, "that role is already on this company")
+    cfg = classify.load_config()
+    tag, hits = classify.tag_posting(title, "", cfg)
+    location = (body.location or "").strip() or None
+    now = run_check._now()
+    cur = conn.execute(
+        """INSERT INTO postings (company_id, posting_key, title, url, location, tag, tag_hits,
+                                 loc_ok, pinned, first_seen, last_seen, is_new, notified_at,
+                                 user_status, status_at)
+           VALUES (?,?,?,?,?,?,?,?,1,?,?,0,?,?,?)""",
+        (company_id, key, title, url, location, tag, hits,
+         1 if classify.location_ok(location or "", cfg) else 0,
+         now, now, now, body.status, now[:10]))
+    conn.commit()
+    row = conn.execute(f"SELECT {', '.join(POSTING_COLS)} FROM postings WHERE id=?",
+                       (cur.lastrowid,)).fetchone()
+    return dict(row)
+
+
+@app.delete("/api/postings/{posting_id}")
+def delete_role(posting_id: int):
+    """Only hand-added roles can be deleted; scraped ones come back on the next check."""
+    conn = db.connect()
+    row = conn.execute("SELECT posting_key FROM postings WHERE id=?", (posting_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "posting not found")
+    if not str(row["posting_key"]).startswith("manual:"):
+        raise HTTPException(400, "only roles you added by hand can be deleted")
+    conn.execute("DELETE FROM postings WHERE id=?", (posting_id,))
+    conn.commit()
+    return {"ok": True}
+
+
+class OutreachUpdate(BaseModel):
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    applied_offboard: Optional[bool] = None
+
+
+@app.post("/api/companies/{company_id}/outreach")
+def set_outreach(company_id: int, body: OutreachUpdate):
+    conn = db.connect()
+    fields = {}
+    if body.status is not None:
+        if body.status not in OUTREACH_STATUSES:
+            raise HTTPException(400, f"status must be one of {OUTREACH_STATUSES}")
+        fields["outreach_status"] = body.status
+        fields["outreach_at"] = _today()
+    if body.notes is not None:
+        fields["outreach_notes"] = body.notes
+    if body.applied_offboard is not None:
+        fields["applied_at"] = _today() if body.applied_offboard else None
+    if not fields:
+        raise HTTPException(400, "nothing to update")
+    sets = ", ".join(f"{k}=?" for k in fields)
+    cur = conn.execute(f"UPDATE companies SET {sets} WHERE id=?", (*fields.values(), company_id))
+    conn.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(404, "company not found")
+    return fields
+
+
+class ContactEdit(BaseModel):
+    name: Optional[str] = None
+    title: Optional[str] = None
+    email: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
+
+def _contact_fields(body: ContactEdit) -> dict:
+    fields = {}
+    for k in ("name", "title", "email", "linkedin_url", "notes"):
+        v = getattr(body, k)
+        if v is not None:
+            fields[k] = v.strip() or None
+    if body.status is not None:
+        if body.status not in CONTACT_STATUSES:
+            raise HTTPException(400, f"status must be one of {CONTACT_STATUSES}")
+        fields["status"] = body.status
+        fields["status_at"] = _today()
+    if "email" in fields:
+        # typed in by hand: nobody has verified it
+        fields["email_status"] = "unverified" if fields["email"] else None
+    return fields
+
+
+@app.post("/api/companies/{company_id}/contacts")
+def add_contact(company_id: int, body: ContactEdit):
+    if not (body.name or "").strip():
+        raise HTTPException(400, "name required")
+    conn = db.connect()
+    if not conn.execute("SELECT 1 FROM companies WHERE id=?", (company_id,)).fetchone():
+        raise HTTPException(404, "company not found")
+    if body.status is None:
+        body.status = "to contact"
+    fields = {"company_id": company_id, "source": "manual", **_contact_fields(body)}
+    cols = ", ".join(fields)
+    if conn.execute("SELECT 1 FROM recruiters WHERE company_id=? AND name=?",
+                    (company_id, fields["name"])).fetchone():
+        raise HTTPException(409, f"{fields['name']} is already a contact here")
+    cur = conn.execute(f"INSERT INTO recruiters ({cols}) VALUES ({', '.join('?' * len(fields))})",
+                       tuple(fields.values()))
+    conn.commit()
+    return dict(conn.execute("SELECT * FROM recruiters WHERE id=?", (cur.lastrowid,)).fetchone())
+
+
+@app.post("/api/recruiters/{recruiter_id}")
+def edit_contact(recruiter_id: int, body: ContactEdit):
+    conn = db.connect()
+    fields = _contact_fields(body)
+    if "name" in fields and not fields["name"]:
+        raise HTTPException(400, "name can't be empty")
+    if fields:
+        sets = ", ".join(f"{k}=?" for k in fields)
+        cur = conn.execute(f"UPDATE recruiters SET {sets} WHERE id=?", (*fields.values(), recruiter_id))
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(404, "contact not found")
+    return dict(conn.execute("SELECT * FROM recruiters WHERE id=?", (recruiter_id,)).fetchone())
+
+
+@app.delete("/api/recruiters/{recruiter_id}")
+def delete_contact(recruiter_id: int):
+    conn = db.connect()
+    cur = conn.execute("DELETE FROM recruiters WHERE id=?", (recruiter_id,))
+    conn.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(404, "contact not found")
     return {"ok": True}
 
 
