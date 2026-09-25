@@ -2,6 +2,8 @@ name,website,sources,discovery_status
 1X,1x.tech,"linkedin,twitter",ok
 28Bio,28bio.com,notion,ok
 Aalo Atomics,aalo.com,twitter,ok
+Accelerated Understanding,acceleratedunderstanding.com,linkedin,needs_manual
+Adaption,adaptionlabs.ai,twitter,ok
 Aethero,aethero.com,twitter,needs_manual
 Aleph Neuro,https://alephneuro.com,twitter,ok
 Alloy Robotics,usealloy.ai,"linkedin,twitter",ok
@@ -9,12 +11,15 @@ alphaXiv,alphaxiv.org,twitter,ok
 Alpyne,alpyne.ai,notion,needs_manual
 Althra,https://althra.ca,linkedin,needs_manual
 Amazon,amazon.jobs,twitter,ok
+Ambi Robotics,ambirobotics.com,linkedin,ok
 Ambition Labs,ambition.inc,twitter,ok
 AMD,amd.com,"linkedin,notion",ok
 AMI Labs,,twitter,ok
+Analog Devices,analog.com,linkedin,ok
 Anduril,anduril.com,manual,ok
 Antares,https://antaresindustries.com,linkedin,ok
 Anthropic,anthropic.com,manual,ok
+Antim Labs,antimlabs.com,twitter,needs_manual
 Anvil Robotics,,twitter,ok
 Apollo Atomics,https://www.apolloatomics.com,linkedin,needs_manual
 Apple,apple.com,manual,ok
@@ -38,6 +43,7 @@ Axo Neurotech,axoneurotech.com,notion,ok
 Axoft,axoft.us,notion,ok
 Ayar Labs,ayarlabs.com,notion,ok
 Base Power Company,https://www.basepowercompany.com,linkedin,ok
+Baud,baudlabs.ai,linkedin,needs_manual
 BenchSci,https://www.benchsci.com,linkedin,ok
 BitRobot,bitrobot.ai,twitter,needs_manual
 Blumind,blumind.ai,notion,ok
@@ -52,6 +58,7 @@ Canada Rocket Company,https://www.canadarocketcompany.com,linkedin,ok
 Canadian Strategic Missions Corporation,https://strategicmissions.ca,linkedin,ok
 Celestial AI,celestial.ai,manual,dead
 Cerebras,cerebras.ai,"linkedin,notion",ok
+CERN openlab,https://openlab.cern,manual,ok
 Cisco,cisco.com,manual,ok
 Cognichip,https://www.cognichip.ai,linkedin,ok
 Coherence Neuro,coherenceneuro.com,notion,ok
@@ -70,7 +77,10 @@ d-Matrix,d-matrix.ai,notion,ok
 D-Wave,dwavequantum.com,notion,ok
 D1 Humanoid,omakaserobotics.ai,twitter,ok
 DARIT Technologies,https://www.darit.tech,linkedin,needs_manual
+DarkVision Technologies,darkvisiontech.com,linkedin,needs_manual
 Databricks,databricks.com,manual,ok
+Deel,deel.com,linkedin,ok
+Dexterity,dexterity.ai,linkedin,ok
 Diode Computers,,twitter,ok
 Dominant Information Solutions Canada,https://www.dominantisc.ca,linkedin,needs_manual
 Dominion Dynamics,dominion-dynamics.com,"linkedin,twitter",ok
@@ -100,8 +110,10 @@ ForceN,https://www.forcen.tech,linkedin,needs_manual
 Forest Neurotech,forestneurotech.org,notion,ok
 Foundation Space Resources,https://fsr.space,linkedin,needs_manual
 Fractal Semiconductor,,linkedin,needs_manual
+Gambit Robotics,gambitrobotics.ai,linkedin,ok
 GelSight,gelsight.com,twitter,ok
 General Fusion,generalfusion.com,notion,ok
+General Intuition,generalintuition.com,manual,ok
 General Robotics,https://www.generalrobotics.com,linkedin,ok
 Generalist AI,generalistai.com,twitter,ok
 Genesis AI,https://genesis.ai,"linkedin,twitter",ok
@@ -154,10 +166,12 @@ Maritime Fusion,maritimefusion.com,notion,ok
 Marvell,marvell.com,manual,ok
 Matic Robots,maticrobots.com,twitter,ok
 MatX,matx.com,notion,ok
+Maven Robotics,mavenrobotics.ai,linkedin,ok
 MDA Space,mda.space,notion,ok
 Mechanize,mechanize.work,twitter,ok
 Mecka,mecka.ai,twitter,ok
 Medra,medra.ai,"linkedin,twitter",ok
+Mentra,mentraglass.com,linkedin,ok
 Merge Labs,merge.io,notion,ok
 Mesh Optical,meshoptical.com,twitter,ok
 MesoMat,mesomat.com,twitter,ok
@@ -171,7 +185,7 @@ Mistral,https://mistral.ai,linkedin,ok
 MistyWest,https://www.mistywest.com,linkedin,ok
 Modular,modular.com,notion,ok
 Mojo Vision,https://www.mojo.vision,linkedin,ok
-Moss,moss.ag,manual,pending
+Moss,moss.ag,manual,ok
 Motif Neurotech,motifneuro.tech,notion,ok
 NASA,nasa.gov,notion,ok
 Neuralink,neuralink.com,notion,ok
@@ -181,6 +195,7 @@ Nordic Semiconductor,https://www.nordicsemi.com,linkedin,ok
 NordSpace,nordspace.com,"linkedin,twitter",ok
 Normal Computing,normalcomputing.com,notion,ok
 Northwood,https://www.northwoodspace.io,linkedin,ok
+Nothing,nothing.tech,linkedin,ok
 Nudge,nudge.com,notion,ok
 Nuro,nuro.ai,manual,ok
 NVIDIA,nvidia.com,"manual,notion",ok
@@ -200,6 +215,7 @@ Oura,ouraring.com,twitter,ok
 Oxide Computer,oxide.computer,notion,ok
 Pacific Fusion,pacificfusion.com,notion,ok
 Pacific Rim Space Exploration Corp,https://www.linkedin.com/company/pacific-rim-space,linkedin,ok
+Palatial,palatial.cloud,twitter,ok
 pamir.ai,pamir.ai,twitter,needs_manual
 Paradromics,paradromics.com,notion,ok
 Perennial Diagnostics,,linkedin,needs_manual
@@ -229,6 +245,7 @@ Radiant,radiantnuclear.com,twitter,ok
 Radical AI,radical.ai,twitter,needs_manual
 Rain AI,rain.ai,notion,ok
 Ramp,ramp.com,manual,ok
+Raptor Maps,raptormaps.com,linkedin,ok
 Rebellions,rebellions.ai,manual,ok
 Red Rabbit Robotics,https://www.redrabbitrobotics.ai,linkedin,ok
 Reducto,reducto.ai,twitter,ok
@@ -250,6 +267,8 @@ Sonera,sonera.io,notion,dead
 SpaceX,spacex.com,twitter,ok
 Standard Bots,standardbots.com,"linkedin,twitter",ok
 Standard Intelligence,https://si.inc,twitter,ok
+Standard Machines,standardmachines.com,twitter,ok
+Star Catcher,star-catcher.com,linkedin,ok
 StarIC,https://www.staric.ca,linkedin,ok
 StarSpec Technologies,starspectechnologies.com,"linkedin,notion",ok
 Stathera,https://www.stathera.com,linkedin,ok
@@ -275,6 +294,7 @@ The Six Semiconductor,https://www.thesixsemi.com,linkedin,ok
 Thinking Machines Lab,thinkingmachines.ai,twitter,ok
 tnkr,tnkr.ai,twitter,ok
 Tomorrow Lab,https://www.tomorrow-lab.com,linkedin,ok
+Torc Robotics,torc.ai,linkedin,ok
 TRIUMF,triumf.ca,notion,ok
 TSMC,tsmc.com,notion,ok
 Turing Pi,turingpi.com,twitter,ok
@@ -294,9 +314,13 @@ Vital Bio,https://vitalbio.com,linkedin,ok
 Volta Space Technologies,https://www.voltaspace.co,linkedin,ok
 Voltair,https://www.voltairlabs.com,linkedin,needs_manual
 Waabi,waabi.ai,twitter,ok
+webly.ai,webly.ai,linkedin,needs_manual
+Wingtra,wingtra.com,linkedin,needs_manual
 WUJI TECH,wuji.tech,twitter,needs_manual
 Wyvern,wyvern.space,"linkedin,notion",ok
 Xiphos,xiphos.com,"linkedin,notion",ok
 Xona Space Systems,xonaspace.com,twitter,ok
 Zeromatter,0m.dev,notion,ok
+Zettascale Computing,zscc.ai,linkedin,ok
 Zipline,https://www.flyzipline.com,manual,ok
+ZY Antenna,kszytec.com,linkedin,needs_manual
