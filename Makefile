@@ -16,13 +16,18 @@ check:            ## scrape all feeds now (ignores the 40h guard)
 notify:           ## email/notify digest of NEW postings
 	$(PY) -m scraper.notify
 
+followups:        ## email the outreach follow-up reminders due today
+	$(PY) -m scraper.followups
+
 serve:            ## run the job board at http://localhost:8787
 	.venv/bin/uvicorn board.app:app --port 8787
 
 schedule-install: ## install the every-other-day launchd job
 	cp launchd/com.yeganeh.internship-check.plist ~/Library/LaunchAgents/
-	launchctl unload ~/Library/LaunchAgents/com.yeganeh.internship-check.plist 2>/dev/null; \
-	launchctl load ~/Library/LaunchAgents/com.yeganeh.internship-check.plist
-	@echo "Installed. Test with: launchctl start com.yeganeh.internship-check"
+	# bootout/bootstrap, not the legacy unload/load: a job registered the old way picked up
+	# a managed code requirement in Sep 2026 and every fire died with EX_CONFIG (78).
+	launchctl bootout gui/$$(id -u)/com.yeganeh.internship-check 2>/dev/null; \
+	launchctl bootstrap gui/$$(id -u) ~/Library/LaunchAgents/com.yeganeh.internship-check.plist
+	@echo "Installed. Test with: launchctl kickstart gui/$$(id -u)/com.yeganeh.internship-check"
 
-.PHONY: setup ingest discover check notify serve schedule-install
+.PHONY: setup ingest discover check notify followups serve schedule-install

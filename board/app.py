@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, Response
 from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scraper import adapters, classify, db, run_check  # noqa: E402
+from scraper import adapters, classify, db, followups, run_check, watchdog  # noqa: E402
 from scraper.ingest import normalize  # noqa: E402
 
 app = FastAPI(title="Internship Tracker")
@@ -32,6 +32,11 @@ async def basic_auth(request: Request, call_next):
     if password and request.url.path != "/api/health":
         ok = False
         auth = request.headers.get("authorization", "")
+        # Vercel cron calls /api/cron/* with "Authorization: Bearer $CRON_SECRET" (an
+        # env var you set on the project); that token opens nothing else.
+        cron_secret = os.environ.get("CRON_SECRET")
+        if cron_secret and request.url.path.startswith("/api/cron/") and auth.startswith("Bearer "):
+            ok = secrets.compare_digest(auth[7:], cron_secret)
         if auth.startswith("Basic "):
             import base64
             try:
@@ -88,7 +93,7 @@ def companies():
             """SELECT c.id, c.name, c.website, c.careers_url, c.ats_type,
                       c.discovery_status, c.last_checked, c.last_check_status, c.audit_note,
                       c.feed_url, c.sources, c.manual_note, c.applied_at, c.outreach_status, c.outreach_notes, c.outreach_at,
-                      c.country, c.hq, c.description, c.source_detail,
+                      c.country, c.hq, c.description, c.source_detail, c.priority,
                       (SELECT COUNT(*) FROM postings p
                        WHERE p.company_id=c.id AND p.closed=0) AS open_count
                FROM companies c ORDER BY c.name COLLATE NOCASE"""
@@ -97,8 +102,12 @@ def companies():
     recs: dict[int, list] = {}
     for r in conn.execute("SELECT * FROM recruiters"):
         recs.setdefault(r["company_id"], []).append(dict(r))
+    fups: dict[int, list] = {}
+    for f in followups.pending(conn):
+        fups.setdefault(f["company_id"], []).append(f)
     for c in comps:
         c["recruiters"] = recs.get(c["id"], [])
+        c["followups"] = fups.get(c["id"], [])
     return comps
 
 
@@ -133,7 +142,8 @@ POSTING_COLS = ["id", "title", "url", "location", "department", "tag", "tag_hits
                 "first_seen", "last_seen", "is_new", "closed", "user_status", "status_at",
                 "export_status", "export_regime", "visa_sponsorship", "export_evidence", "posting_key"]
 CONTACT_COLS = ["id", "company_id", "name", "title", "email", "email_status", "linkedin_url",
-                "source", "status", "notes", "status_at"]
+                "source", "status", "notes", "status_at", "purpose"]
+FOLLOWUP_COLS = ["id", "company_id", "recruiter_id", "step", "due", "sent_at", "done_at"]
 
 
 def _json_rows(table: str, cols: list, order: str) -> str:
@@ -152,15 +162,41 @@ def company_detail(company_id: int):
     conn = db.connect()
     row = conn.execute(
         f"""SELECT c.*, {_json_rows("postings", POSTING_COLS, "closed, first_seen DESC")} AS _posts,
-                   {_json_rows("recruiters", CONTACT_COLS, "id")} AS _contacts
+                   {_json_rows("recruiters", CONTACT_COLS, "id")} AS _contacts,
+                   {_json_rows("followups", FOLLOWUP_COLS, "due, step")} AS _fups
             FROM companies c WHERE c.id=?""", (company_id,)).fetchone()
     if not row:
         raise HTTPException(404, "company not found")
     c = dict(row)
     posts, recs = json.loads(c.pop("_posts") or "[]"), json.loads(c.pop("_contacts") or "[]")
+    fups = [f for f in json.loads(c.pop("_fups") or "[]") if not f["done_at"]]
     for p in posts:
         p["user_status"] = LEGACY_STATUS.get(p["user_status"], p["user_status"])
-    return {"company": c, "postings": posts, "contacts": recs}
+    return {"company": c, "postings": posts, "contacts": recs, "followups": fups}
+
+
+class Priority(BaseModel):
+    rank: Optional[int] = None   # 1-5, or null to unrank
+
+
+@app.post("/api/companies/{company_id}/priority")
+def set_priority(company_id: int, body: Priority):
+    """Rank a company 1-5 in the reach-out-next list. A rank lives on one company at a
+    time: taking a rank someone else holds hands them your old rank (or unranks them)."""
+    if body.rank is not None and not 1 <= body.rank <= 5:
+        raise HTTPException(400, "rank must be 1-5 or null")
+    conn = db.connect()
+    row = conn.execute("SELECT priority FROM companies WHERE id=?", (company_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "company not found")
+    old = row["priority"]
+    if body.rank is not None:
+        conn.execute("UPDATE companies SET priority=? WHERE priority=? AND id<>?",
+                     (old, body.rank, company_id))
+    conn.execute("UPDATE companies SET priority=? WHERE id=?", (body.rank, company_id))
+    conn.commit()
+    return [dict(r) for r in conn.execute(
+        "SELECT id, priority FROM companies WHERE priority IS NOT NULL ORDER BY priority")]
 
 
 class ManualRole(BaseModel):
@@ -244,9 +280,13 @@ def set_outreach(company_id: int, body: OutreachUpdate):
         raise HTTPException(400, "nothing to update")
     sets = ", ".join(f"{k}=?" for k in fields)
     cur = conn.execute(f"UPDATE companies SET {sets} WHERE id=?", (*fields.values(), company_id))
-    conn.commit()
     if cur.rowcount == 0:
         raise HTTPException(404, "company not found")
+    if body.status is not None:
+        # "reached out" with nobody attached queues company-level nudges; see followups.py
+        followups.on_company_status(conn, company_id, body.status)
+        fields["followups"] = followups.pending(conn, company_id)
+    conn.commit()
     return fields
 
 
@@ -257,6 +297,7 @@ class ContactEdit(BaseModel):
     linkedin_url: Optional[str] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+    purpose: Optional[str] = None   # referral | application | other | "" to clear
 
 
 def _contact_fields(body: ContactEdit) -> dict:
@@ -273,6 +314,11 @@ def _contact_fields(body: ContactEdit) -> dict:
     if "email" in fields:
         # typed in by hand: nobody has verified it
         fields["email_status"] = "unverified" if fields["email"] else None
+    if body.purpose is not None:
+        purpose = body.purpose.strip() or None
+        if purpose and purpose not in followups.PURPOSES:
+            raise HTTPException(400, f"purpose must be one of {followups.PURPOSES}")
+        fields["purpose"] = purpose
     return fields
 
 
@@ -292,6 +338,8 @@ def add_contact(company_id: int, body: ContactEdit):
         raise HTTPException(409, f"{fields['name']} is already a contact here")
     cur = conn.execute(f"INSERT INTO recruiters ({cols}) VALUES ({', '.join('?' * len(fields))})",
                        tuple(fields.values()))
+    if fields["status"] == "messaged":
+        followups.on_contact_status(conn, company_id, cur.lastrowid, "messaged")
     conn.commit()
     return dict(conn.execute("SELECT * FROM recruiters WHERE id=?", (cur.lastrowid,)).fetchone())
 
@@ -305,20 +353,36 @@ def edit_contact(recruiter_id: int, body: ContactEdit):
     if fields:
         sets = ", ".join(f"{k}=?" for k in fields)
         cur = conn.execute(f"UPDATE recruiters SET {sets} WHERE id=?", (*fields.values(), recruiter_id))
-        conn.commit()
         if cur.rowcount == 0:
             raise HTTPException(404, "contact not found")
-    return dict(conn.execute("SELECT * FROM recruiters WHERE id=?", (recruiter_id,)).fetchone())
+    out = dict(conn.execute("SELECT * FROM recruiters WHERE id=?", (recruiter_id,)).fetchone())
+    if "status" in fields:
+        # messaged -> queue the day-5 / day-10 nudges; followed up / replied retire them
+        followups.on_contact_status(conn, out["company_id"], recruiter_id, fields["status"])
+        out["followups"] = followups.pending(conn, out["company_id"])
+    conn.commit()
+    return out
 
 
 @app.delete("/api/recruiters/{recruiter_id}")
 def delete_contact(recruiter_id: int):
     conn = db.connect()
+    conn.execute("DELETE FROM followups WHERE recruiter_id=?", (recruiter_id,))
     cur = conn.execute("DELETE FROM recruiters WHERE id=?", (recruiter_id,))
     conn.commit()
     if cur.rowcount == 0:
         raise HTTPException(404, "contact not found")
     return {"ok": True}
+
+
+@app.get("/api/cron/followups")
+def cron_followups():
+    """Email the outreach follow-ups due today. Vercel calls this daily (vercel.json
+    crons, authenticated by CRON_SECRET); the laptop's launchd job runs the same
+    code via `python -m scraper.followups`. Each nudge is emailed once, so both
+    can fire on the same day."""
+    conn = db.connect()
+    return followups.send(conn)
 
 
 @app.get("/api/people")
@@ -357,9 +421,23 @@ def analysis():
 
 @app.get("/api/runs/latest")
 def latest_run():
+    """The last *full* run (a --company check says nothing about the schedule's health),
+    plus the watchdog verdict the header uses for its stale banner."""
     conn = db.connect()
-    row = conn.execute("SELECT * FROM runs ORDER BY id DESC LIMIT 1").fetchone()
-    return dict(row) if row else {}
+    row = conn.execute(
+        "SELECT * FROM runs WHERE scope='full' AND finished IS NOT NULL ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    out = dict(row) if row else {}
+    out["watchdog"] = watchdog.status(conn)
+    return out
+
+
+@app.get("/api/cron/watchdog")
+def cron_watchdog():
+    """Daily Vercel cron (vercel.json): email if the laptop's scheduled full check
+    has stopped finishing. Lives here, not in the launchd job, because a broken
+    launchd job can't report itself."""
+    return watchdog.check(db.connect())
 
 
 @app.get("/api/recruiters.csv")

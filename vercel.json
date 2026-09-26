@@ -1,3 +1,7 @@
 {
-  "regions": ["dub1"]
+  "regions": ["dub1"],
+  "crons": [
+    { "path": "/api/cron/followups", "schedule": "0 14 * * *" },
+    { "path": "/api/cron/watchdog", "schedule": "0 18 * * *" }
+  ]
 }

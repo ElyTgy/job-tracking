@@ -12,11 +12,26 @@ directory per company.
 make serve        # job board at http://localhost:8787
 make check        # scrape everything right now
 make notify       # send digest of NEW postings (email or macOS notification)
+make followups    # email the outreach follow-up reminders due today
 ```
 
-The scheduled job (`make schedule-install`) runs check+notify daily at 10:00;
-a built-in 40-hour guard makes that effectively **every other day**, and
-launchd catches up after sleep.
+The scheduled job (`make schedule-install`) runs check+notify+followups daily at
+10:00; a built-in 40-hour guard makes the scrape effectively **every other day**,
+and launchd catches up after sleep. If `launchctl print gui/$(id -u)/com.yeganeh.internship-check`
+shows `last exit code = 78` the job never spawned: that happened once when the
+log files picked up a macOS privacy tag, which is why the plist redirects its own
+output instead of using StandardOutPath.
+
+## Outreach follow-ups
+
+On the Companies tab, set a contact to **messaged** (and pick what you asked for:
+referral, application push, other). Two reminders are queued: 5 and 10 days after
+the message. Each morning whatever is due goes out as one email listing the person,
+company, email/LinkedIn, and your notes. Marking them **followed up** retires the
+next reminder; **replied** or **no reply** retires both; re-marking **messaged**
+starts over. Setting a company's outreach stage to **reached out** with no contact
+attached queues the same two reminders for the company itself. The **Follow-ups**
+filter lists what is queued, overdue first.
 
 ## Adding companies
 
@@ -49,6 +64,18 @@ GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
 
 Without it, you get a macOS notification instead of email.
 
+Follow-up reminders use the same credentials. They are sent by the laptop job and
+by a daily Vercel cron (`vercel.json` → `GET /api/cron/followups`), so they go out
+even when the laptop is asleep; each reminder is emailed once whichever runs first.
+
+**Watchdog.** A second Vercel cron (`GET /api/cron/watchdog`, `scraper/watchdog.py`)
+emails you if no full check has *finished* in 72 hours, and the board shows a red
+banner for the same condition. It runs off the laptop on purpose: in Sep 2026 the
+launchd job died silently for two weeks (every fire exited 78 before any code ran)
+and nothing noticed. If you get the alert, check
+`launchctl print gui/$(id -u)/com.yeganeh.internship-check` and `logs/check.err.log`,
+then `make check` / `make schedule-install`.
+
 ## Layout
 
 - `scraper/` — ingest → discover → run_check → notify pipeline (Python)
@@ -72,6 +99,10 @@ One-time setup:
 3. **Copy the existing data up:** `.venv/bin/python -m scraper.migrate_to_turso`
 4. **Vercel** — import the GitHub repo; in *Settings → Environment Variables* add the
    same three variables; redeploy. The entrypoint is declared in `pyproject.toml`.
+5. **Follow-up cron** — also add `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD`, `CRON_SECRET`
+   (any long random string; Vercel sends it as a bearer token when it calls the cron
+   path) and optionally `BOARD_URL` (linked from the email). Redeploy so the cron in
+   `vercel.json` is registered.
 
 The board asks for a password (any username) whenever `BOARD_PASSWORD` is set.
 `/api/health` reports which backend is in use. Without the Turso variables everything

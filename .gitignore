@@ -8,3 +8,4 @@ inputs/
 .DS_Store
 .vercel
 .env*
+.codex/

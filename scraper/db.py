@@ -99,6 +99,18 @@ CREATE TABLE IF NOT EXISTS watch_snapshots (
     diff TEXT                   -- unified diff vs previous snapshot; NULL on the baseline
 );
 
+CREATE TABLE IF NOT EXISTS followups (
+    id INTEGER PRIMARY KEY,
+    company_id INTEGER NOT NULL REFERENCES companies(id),
+    recruiter_id INTEGER REFERENCES recruiters(id),  -- NULL = company-level (outreach set to
+                                                     -- "reached out" with nobody attached)
+    step INTEGER NOT NULL,      -- 1 = first nudge (day 5), 2 = second and last (day 10)
+    due TEXT NOT NULL,          -- YYYY-MM-DD the reminder email should go out
+    sent_at TEXT,               -- when it was emailed; NULL = not yet
+    done_at TEXT,               -- retired without emailing: you followed up / they replied / status reset
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,       -- 'schema': fingerprint of SCHEMA + MIGRATIONS last applied
     value TEXT
@@ -181,6 +193,12 @@ MIGRATIONS = [
     "ALTER TABLE companies ADD COLUMN hq TEXT",
     "ALTER TABLE companies ADD COLUMN description TEXT",
     "ALTER TABLE companies ADD COLUMN source_detail TEXT",
+    # priority: 1-5 = "reach out to these next" ranking on the Companies tab; NULL = unranked.
+    # The board keeps each rank on at most one company (setting a taken rank swaps).
+    "ALTER TABLE companies ADD COLUMN priority INTEGER",
+    # purpose: what you asked this person for -- referral | application | other. Set when
+    # you mark them messaged; the follow-up reminder email repeats it back to you.
+    "ALTER TABLE recruiters ADD COLUMN purpose TEXT",
 ]
 
 

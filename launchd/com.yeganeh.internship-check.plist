@@ -14,15 +14,15 @@
   </dict>
   <key>WorkingDirectory</key>
   <string>/Users/yeganeh/Documents/job-tracking</string>
+  <!-- The shell appends to the log files itself; no StandardOutPath/StandardErrorPath.
+       launchd opens those paths before spawning, and once a log file picks up a
+       com.apple.macl privacy tag (it did in Sep 2026, after being opened from an app)
+       that open fails and every fire dies with exit 78 (EX_CONFIG) and no output. -->
   <key>ProgramArguments</key>
   <array>
     <string>/bin/zsh</string>
     <string>-c</string>
-    <string>.venv/bin/python -m scraper.run_check &amp;&amp; .venv/bin/python -m scraper.notify</string>
+    <string>cd /Users/yeganeh/Documents/job-tracking &amp;&amp; { .venv/bin/python -m scraper.run_check; .venv/bin/python -m scraper.notify; .venv/bin/python -m scraper.followups; } >> logs/check.log 2>> logs/check.err.log</string>
   </array>
-  <key>StandardOutPath</key>
-  <string>/Users/yeganeh/Documents/job-tracking/logs/check.log</string>
-  <key>StandardErrorPath</key>
-  <string>/Users/yeganeh/Documents/job-tracking/logs/check.err.log</string>
 </dict>
 </plist>
